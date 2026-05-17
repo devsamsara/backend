@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "module": "NodeNext",
+    "esModuleInterop": true,
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "strictPropertyInitialization": false
+    // Importante para MikroORM y decoradores
+  },
+  "lib": [
+    "es2015"
+  ]
+}
+
