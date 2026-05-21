@@ -11,15 +11,18 @@ import {TimelineEvent} from "../entities/TimelineEvent.entity";
 import { RefreshToken } from '../entities/RefreshToken';
 
 dotenv.config()
+const isLocal = process.env.NODE_ENV === 'production';
 
+console.log(isLocal);
 export default defineConfig({
     driver: PostgreSqlDriver,
-    host: process.env.DB_HOST,
+    clientUrl: isLocal ? undefined: process.env.DATABASE_URL,
+    /*host: process.env.DB_HOST,
     port: Number.parseInt(process.env.DB_PORT ?? '5432') ,
     dbName: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    schema: process.env.DB_SCHEMA,
+    schema: process.env.DB_SCHEMA,*/
 
     // Entities
     entities: [User, Company, Note, PhotoEntity, Project, TimelineEvent, RefreshToken],
