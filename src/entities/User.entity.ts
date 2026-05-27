@@ -21,6 +21,10 @@ export enum UserRole {
     ADMIN = 'admin',
     USER = 'user',
     ROOT = 'root',
+    TECHNICIAN = 'field_technician',
+    WORKER = 'worker',
+    CLIENT = 'client',
+    VIEWER = 'viewer'
 }
 
 export enum UserStatus {

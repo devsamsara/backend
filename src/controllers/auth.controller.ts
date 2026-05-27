@@ -7,10 +7,10 @@ import { LoggerUtils } from '../utils/logger.utils';
 // ─── HTML renderer (private to this controller) ───────────────────────────────
 
 function renderPage(title: string, message: string, success: boolean): string {
-  const color   = success ? '#16a34a' : '#dc2626';
-  const icon    = success ? '✓' : '✗';
+  const color = success ? '#16a34a' : '#dc2626';
+  const icon = success ? '✓' : '✗';
   const APP_NAME = process.env.APP_NAME ?? 'Samsara';
-  const APP_URL  = process.env.APP_URL  ?? 'http://localhost:3000';
+  const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
   return `
     <!DOCTYPE html>
@@ -369,18 +369,76 @@ Debe tener al menos 8 caracteres.</p>
   `;
 }
 
+function renderAcceptInvitationPage(token: string, error?: string): string {
+  const APP_NAME = process.env.APP_NAME ?? 'Samsara';
+  const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-// ─── Controller ───────────────────────────────────────────────────────────────
+  // Apunta a la misma ruta pero mediante POST
+  const formAction = `${API_URL}/auth/accept-invitation/?token=${encodeURIComponent(token)}`;
+  const errorBlock = error
+    ? `<div class="error-box" style="background:#fef2f2; border: 1px solid #fecaca; color:#dc2626; padding:10px; border-radius:8px; margin-bottom:20px; text-align: left; font-size:13px;">${error}</div>`
+    : '';
+
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8"/>
+      <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+      <title>Invitación a Compañía — ${APP_NAME}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); max-width: 480px; width: 100%; overflow: hidden; }
+        .header { background: #111827; padding: 28px 32px; text-align: center; }
+        .header h1 { color: #fff; font-size: 20px; font-weight: 700; }
+        .body { padding: 36px 32px; text-align: center; }
+        .icon { width: 64px; height: 64px; border-radius: 50%; background: #2563eb20; color: #2563eb; font-size: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        h2 { color: #111827; font-size: 18px; margin-bottom: 12px; }
+        p { color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
+        button { background: #111827; color: #fff; padding: 12px 28px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; transition: background .2s; }
+        button:hover { background: #1f2937; }
+        .footer { padding: 16px 32px; text-align: center; border-top: 1px solid #e5e7eb; }
+        .footer p { color: #9ca3af; font-size: 12px; margin: 0; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header"><h1>${APP_NAME}</h1></div>
+        <div class="body">
+          <div class="icon">🏢</div>
+          <h2>¡Te damos la bienvenida!</h2>
+          <p>Has sido aceptado y registrado en una compañía dentro de nuestra plataforma. Haz clic en el botón de abajo para confirmar tu acceso y activar tu cuenta.</p>
+          
+          ${errorBlock}
+          
+          <form method="POST" action="${formAction}">
+            <button type="submit">Aceptar invitación</button>
+          </form>
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${APP_NAME}. Todos los derechos reservados.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
 
 export const AuthController = {
-
   confirmAccount: async (req: Request, res: Response): Promise<void> => {
     const { token } = req.query as { token?: string };
 
     if (!token) {
-      res.status(400).send(
-        renderPage('Token inválido', 'No se proporcionó ningún token de confirmación.', false),
-      );
+      res
+        .status(400)
+        .send(
+          renderPage(
+            'Token inválido',
+            'No se proporcionó ningún token de confirmación.',
+            false
+          )
+        );
       return;
     }
 
@@ -388,13 +446,15 @@ export const AuthController = {
       const service = new AuthService(getEM());
       await service.confirmAccount(token);
 
-      res.status(200).send(
-        renderPage(
-          '¡Cuenta activada!',
-          'Tu cuenta ha sido verificada correctamente. Ya puedes iniciar sesión.',
-          true,
-        ),
-      );
+      res
+        .status(200)
+        .send(
+          renderPage(
+            '¡Cuenta activada!',
+            'Tu cuenta ha sido verificada correctamente. Ya puedes iniciar sesión.',
+            true
+          )
+        );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       LoggerUtils.error('confirmAccount failed', { err });
@@ -407,15 +467,21 @@ export const AuthController = {
     const newPassword = req.body.newPassword;
 
     if (!token) {
-      res.status(400).send(
-        renderPage('Token inválido', 'No se proporcionó ningún token de restablecimiento.', false),
-      );
+      res
+        .status(400)
+        .send(
+          renderPage(
+            'Token inválido',
+            'No se proporcionó ningún token de restablecimiento.',
+            false
+          )
+        );
       return;
     }
-    if(req.method === 'GET') {
+    if (req.method === 'GET') {
       res.status(200).send(renderPasswordResetPage(token));
     }
-    if(req.method === 'POST') {
+    if (req.method === 'POST') {
       if (!newPassword || newPassword.length < 8) {
         return res
           .status(400)
@@ -426,7 +492,6 @@ export const AuthController = {
             )
           );
       }
-
 
       try {
         const service = new AuthService(getEM());
@@ -452,27 +517,29 @@ export const AuthController = {
     }
   },
 
-  /**
-   * GET /admin/confirm-company?token=xxx
-   * Admin clicks "Aprobar" in the notification email → activates company.
-   */
   confirmCompany: async (req: Request, res: Response): Promise<void> => {
     const { token } = req.query as { token?: string };
 
     if (!token) {
-      res.status(400).send(
-        renderPage('Token inválido', 'No se proporcionó ningún token de confirmación.', false),
-      );
+      res
+        .status(400)
+        .send(
+          renderPage(
+            'Token inválido',
+            'No se proporcionó ningún token de confirmación.',
+            false
+          )
+        );
       return;
     }
 
     try {
       const service = new CompanyService(getEM());
-      const result  = await service.confirmCompany(token);
+      const result = await service.confirmCompany(token);
 
-      res.status(200).send(
-        renderPage('¡Empresa aprobada!', result.message, true),
-      );
+      res
+        .status(200)
+        .send(renderPage('¡Empresa aprobada!', result.message, true));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       LoggerUtils.error('confirmCompany failed', { err });
@@ -480,27 +547,25 @@ export const AuthController = {
     }
   },
 
-  /**
-   * GET /admin/reject-company?token=xxx
-   * Admin clicks "Rechazar" in the notification email → rejects company.
-   */
   rejectCompany: async (req: Request, res: Response): Promise<void> => {
     const { token } = req.query as { token?: string };
 
     if (!token) {
-      res.status(400).send(
-        renderPage('Token inválido', 'No se proporcionó ningún token.', false),
-      );
+      res
+        .status(400)
+        .send(
+          renderPage('Token inválido', 'No se proporcionó ningún token.', false)
+        );
       return;
     }
 
     try {
       const service = new CompanyService(getEM());
-      const result  = await service.confirmCompany(token); // token maps to action='reject'
+      const result = await service.confirmCompany(token); // token maps to action='reject'
 
-      res.status(200).send(
-        renderPage('Empresa rechazada', result.message, false),
-      );
+      res
+        .status(200)
+        .send(renderPage('Empresa rechazada', result.message, false));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       LoggerUtils.error('rejectCompany failed', { err });
@@ -508,4 +573,34 @@ export const AuthController = {
     }
   },
 
+  confirmInvitation: async (req: Request, res: Response): Promise<void> => {
+    const { token } = req.query as { token?: string };
+
+    if (!token) {
+      res
+        .status(400)
+        .send(
+          renderPage(
+            'Token inválido',
+            'No se proporcionó ningún token de invitación.',
+            false
+          )
+        );
+      return;
+    }
+
+    try {
+      const service = new CompanyService(getEM());
+      const { resetToken, userName } = await service.confirmInvitation(token);
+
+      // Redirigimos al flujo de reset-password ya existente.
+      // El usuario debe elegir su contraseña antes de poder iniciar sesión.
+      const resetUrl = `/auth/reset-password?token=${resetToken}`;
+      res.redirect(302, resetUrl);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      LoggerUtils.error('confirmInvitation failed', { err });
+      res.status(400).send(renderPage('Invitación inválida', message, false));
+    }
+  },
 };

@@ -3,6 +3,9 @@ export const userTypeDefs = /* GraphQL */ `
     admin
     user
     root
+    technician
+    client,
+    viewer
   }
 
   enum UserStatus {

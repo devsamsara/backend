@@ -1,3 +1,6 @@
+import { EntityManager } from '@mikro-orm/core';
+import User from '../entities/User.entity';
+
 /**
  * Generates a base nickname from name + lastName.
  * Rules:
@@ -29,4 +32,24 @@ export function generateBaseNickname(name: string, lastName?: string): string {
 export function generateNicknameSuffix(base: string): string {
   const suffix = Math.floor(1000 + Math.random() * 9000); // 4-digit random
   return `${base}${suffix}`;
+}
+
+export async function resolveUniqueNickname(
+  em: EntityManager,
+  name: string,
+  lastName?: string,
+): Promise<string> {
+  const base = generateBaseNickname(name, lastName);
+  let nickname = base;
+  let attempts = 0;
+
+  while (await em.findOne(User, { nickname })) {
+    nickname =
+      attempts < 10
+        ? generateNicknameSuffix(base)
+        : `${base}${Date.now().toString(36)}`;
+    attempts++;
+  }
+
+  return nickname;
 }

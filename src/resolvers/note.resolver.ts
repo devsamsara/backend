@@ -63,9 +63,9 @@ export const noteResolvers = {
       { input }: { input: CreateNoteInput },
       ctx: GraphQLContext,
     ) => {
-      const { sub } = requireAuth(ctx);
+      const { id } = requireAuth(ctx);
       const service = new NoteService(ctx.em);
-      return service.createNote(input, sub);
+      return service.createNote(input, id);
     },
 
     /**
@@ -77,9 +77,9 @@ export const noteResolvers = {
       { id, input }: { id: string; input: UpdateNoteInput },
       ctx: GraphQLContext,
     ) => {
-      const { sub, role } = requireAuth(ctx);
+      const { id: idUser, role } = requireAuth(ctx);
       const service = new NoteService(ctx.em);
-      return service.updateNote(id, input, sub, role);
+      return service.updateNote(id, input, idUser, role);
     },
 
     /**
@@ -91,9 +91,9 @@ export const noteResolvers = {
       { id }: { id: string },
       ctx: GraphQLContext,
     ) => {
-      const { sub, role } = requireAuth(ctx);
+      const { id: idUser, role } = requireAuth(ctx);
       const service = new NoteService(ctx.em);
-      return service.deleteNote(id, sub, role);
+      return service.deleteNote(id, idUser, role);
     },
 
     /**
@@ -105,9 +105,9 @@ export const noteResolvers = {
       { id }: { id: string },
       ctx: GraphQLContext,
     ) => {
-      const { sub, role } = requireAuth(ctx);
+      const { id:idUser, role } = requireAuth(ctx);
       const service = new NoteService(ctx.em);
-      return service.togglePin(id, sub, role);
+      return service.togglePin(id, idUser, role);
     },
   },
 };

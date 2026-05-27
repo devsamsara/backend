@@ -1,9 +1,20 @@
 export const projectTypeDefs = /* GraphQL */ `
+  enum ProjectStatus {
+    active
+    ongoing
+    paused
+    completed
+    canceled
+  }
+  
+
 
   type Photo {
     id: ID!
     url: String!
     createdAt: String!
+    tags: [String]
+    caption: String!
   }
 
   type Project {
@@ -14,16 +25,16 @@ export const projectTypeDefs = /* GraphQL */ `
     longitude: Float
     thumbnail: String
     description: String!
-    status: String!
+    status: ProjectStatus!
     progress: Int!
     startDate: String!
     endDate: String
     members: [User!]!
     photos: [Photo!]!
     notes: [Note!]!
-    timeline: [TimelineEvent!]!
+    timeline: [TimelineEvent!]
     createdAt: String!
-    updatedAt: String!
+    updatedAt: String
   }
 
   type PaginatedProjects {
@@ -37,11 +48,11 @@ export const projectTypeDefs = /* GraphQL */ `
   input CreateProjectInput {
     name: String!
     location: String!
-    latitude: Float
-    longitude: Float
+    latitude: Float!
+    longitude: Float!
     thumbnail: String
-    description: String!
-    startDate: String!
+    description: String
+    startDate: String
     endDate: String
     memberIds: [ID!]
   }
