@@ -16,7 +16,7 @@ const isLocal = process.env.NODE_ENV === 'production';
 console.log(isLocal);
 export default defineConfig({
   driver: PostgreSqlDriver,
-  clientUrl: isLocal ? undefined : process.env.DATABASE_URL,
+  clientUrl: process.env.DATABASE_URL,
   /*host: process.env.DB_HOST,
     port: Number.parseInt(process.env.DB_PORT ?? '5432') ,
     dbName: process.env.DB_NAME,
