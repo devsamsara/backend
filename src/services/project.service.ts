@@ -1,9 +1,9 @@
 import { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import { Project } from '../entities/Project.entity';
+import { Project, ProjectStatus } from '../entities/Project.entity';
 import User, { UserRole } from '../entities/User.entity';
 import { ErrorUtils } from '../utils/error.utils';
-import { LoggerUtils, loggerUtils } from '../utils/logger.utils';
+import { LoggerUtils } from '../utils/logger.utils';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -13,9 +13,13 @@ const CreateProjectSchema = z.object({
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   thumbnail: z.string().url().optional(),
-  description: z.string().min(10),
-  startDate: z.string().datetime({ offset: true }).or(z.string().date()),
-  endDate: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
+  description: z.string().min(10).optional(),
+  startDate: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
+  endDate: z
+    .string()
+    .datetime({ offset: true })
+    .or(z.string().date())
+    .optional(),
   memberIds: z.array(z.string().uuid()).optional(),
 });
 
@@ -53,7 +57,7 @@ export class ProjectService {
     const project = await this.em.findOne(
       Project,
       { id },
-      { populate: ['members', 'photos', 'notes', 'timeline'] },
+      { populate: ['members', 'photos', 'notes', 'timeline'] }
     );
     if (!project) throw ErrorUtils.notFound('Project');
     return project;
@@ -61,7 +65,8 @@ export class ProjectService {
 
   // ── Paginated list with filters ─────────────────────────────────────────────
   async getProjects(rawFilters: Partial<ProjectFiltersInput> = {}) {
-    const { query, status, page, limit } = ProjectFiltersSchema.parse(rawFilters);
+    const { query, status, page, limit } =
+      ProjectFiltersSchema.parse(rawFilters);
     const where: Record<string, unknown> = {};
 
     if (query) {
@@ -76,40 +81,48 @@ export class ProjectService {
 
     const offset = (page - 1) * limit;
 
-    const [items, total] = await this.em.findAndCount(
-      Project,
-      where as never,
-      {
-        populate: ['members'],
-        limit,
-        offset,
-        orderBy: { createdAt: 'DESC' },
-      },
-    );
+    const [items, total] = await this.em.findAndCount(Project, where as never, {
+      populate: ['members'],
+      limit,
+      offset,
+      orderBy: { createdAt: 'DESC' },
+    });
 
-    return { items, total, page, limit, hasNextPage: offset + items.length < total };
+    return {
+      items,
+      total,
+      page,
+      limit,
+      hasNextPage: offset + items.length < total,
+    };
   }
 
   // ── Projects where current user is a member ─────────────────────────────────
   async getMyProjects(currentUserId: string): Promise<Project[]> {
-    return this.em.find(
+    const projects = await this.em.find(
       Project,
       { members: { id: currentUserId } },
-      { populate: ['members'], orderBy: { createdAt: 'DESC' } },
+      { populate: ['members', 'photos'], orderBy: { createdAt: 'DESC' } }
     );
+
+    return projects.map(project => {
+      project.photos.init();
+
+      return project;
+    });
   }
 
   // ── Create ──────────────────────────────────────────────────────────────────
   async createProject(
     input: CreateProjectInput,
-    currentUserId: string,
+    currentUserId: string
   ): Promise<Project> {
     const data = CreateProjectSchema.parse(input);
     const { memberIds, startDate, endDate, ...rest } = data;
 
     const project = this.em.create(Project, {
       ...rest,
-      startDate: new Date(startDate),
+      startDate: new Date(),
       endDate: endDate ? new Date(endDate) : undefined,
     });
 
@@ -137,24 +150,32 @@ export class ProjectService {
     id: string,
     input: UpdateProjectInput,
     currentUserId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<Project> {
     const data = UpdateProjectSchema.parse(input);
     const project = await this.findById(id);
 
     await project.members.init();
-    const isMember = project.members.getItems().some(u => u.id === currentUserId);
+    const isMember = project.members
+      .getItems()
+      .some(u => u.id === currentUserId);
 
     if (!isMember && currentRole === UserRole.USER) {
-      throw ErrorUtils.forbidden('Only project members or admins can update this project');
+      throw ErrorUtils.forbidden(
+        'Only project members or admins can update this project'
+      );
     }
 
-    if (data.progress !== undefined && (data.progress < 0 || data.progress > 100)) {
+    if (
+      data.progress !== undefined &&
+      (data.progress < 0 || data.progress > 100)
+    ) {
       throw ErrorUtils.badRequest('Progress must be between 0 and 100');
     }
 
     this.em.assign(project, {
       ...data,
+      status: data.status as ProjectStatus,
       startDate: data.startDate ? new Date(data.startDate) : undefined,
       endDate: data.endDate ? new Date(data.endDate) : undefined,
     });
@@ -180,7 +201,7 @@ export class ProjectService {
   async addMember(
     projectId: string,
     userId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<Project> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can add members');
@@ -190,7 +211,8 @@ export class ProjectService {
     await project.members.init();
 
     const alreadyMember = project.members.getItems().some(u => u.id === userId);
-    if (alreadyMember) throw ErrorUtils.conflict('User is already a member of this project');
+    if (alreadyMember)
+      throw ErrorUtils.conflict('User is already a member of this project');
 
     const user = await this.em.findOne(User, { id: userId });
     if (!user) throw ErrorUtils.notFound('User');
@@ -206,7 +228,7 @@ export class ProjectService {
   async removeMember(
     projectId: string,
     userId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<Project> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can remove members');
@@ -216,7 +238,8 @@ export class ProjectService {
     await project.members.init();
 
     const user = project.members.getItems().find(u => u.id === userId);
-    if (!user) throw ErrorUtils.notFound('User is not a member of this project');
+    if (!user)
+      throw ErrorUtils.notFound('User is not a member of this project');
 
     project.members.remove(user);
     await this.em.flush();
@@ -232,7 +255,7 @@ export class ProjectService {
     id: string,
     progress: number,
     currentUserId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<Project> {
     if (progress < 0 || progress > 100) {
       throw ErrorUtils.badRequest('Progress must be between 0 and 100');
@@ -241,16 +264,21 @@ export class ProjectService {
     const project = await this.findById(id);
     await project.members.init();
 
-    const isMember = project.members.getItems().some(u => u.id === currentUserId);
+    const isMember = project.members
+      .getItems()
+      .some(u => u.id === currentUserId);
     if (!isMember && currentRole === UserRole.USER) {
-      throw ErrorUtils.forbidden('Only project members or admins can update progress');
+      throw ErrorUtils.forbidden(
+        'Only project members or admins can update progress'
+      );
     }
 
     project.progress = progress;
 
     // Auto-set status based on progress
-    if (progress === 100) project.status = 'completed';
-    else if (progress > 0 && project.status === 'active') project.status = 'in_progress';
+    if (progress === 100) project.status = ProjectStatus.COMPLETED;
+    else if (progress > 0 && project.status === ProjectStatus.ACTIVE)
+      project.status = ProjectStatus.ONGOING;
 
     await this.em.flush();
     return project;

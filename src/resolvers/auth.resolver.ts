@@ -61,10 +61,19 @@ const register = async (
   { input }: { input: Parameters<AuthService['changePassword']>[1] },
   ctx: GraphQLContext,
 ) => {
-  const { sub } = requireAuth(ctx);
+  const { id } = requireAuth(ctx);
   const service = new AuthService(ctx.em);
-  return service.changePassword(sub, input);
+  return service.changePassword(id, input);
 }
+
+const refreshToken = async (
+  _: unknown,
+  { token }: { token: string },
+  ctx: GraphQLContext
+) => {
+  const service = new AuthService(ctx.em);
+  return service.refreshTokens(token);
+};
 
 export const authResolvers = {
   Mutation: {
@@ -73,6 +82,7 @@ export const authResolvers = {
     login,
     forgotPassword,
     resetPassword,
-    changePassword
+    changePassword,
+    refreshToken
   },
 };

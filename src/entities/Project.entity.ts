@@ -6,6 +6,7 @@ import {TimelineEvent} from "./TimelineEvent.entity";
 import {Note} from "./Note.entity";
 
 export enum ProjectStatus {
+  ACTIVE = 'active',
   ONGOING = 'ongoing',
   PAUSED = 'paused',
   COMPLETED = 'completed',
@@ -32,7 +33,7 @@ export class Project extends BaseEntity {
   @Property({ type: 'text' })
   description: string;
 
-  @Enum({ items: () => UserRole })
+  @Enum({ items: () => ProjectStatus })
   status: ProjectStatus = ProjectStatus.ONGOING;
 
   @Property({ default: 0 })

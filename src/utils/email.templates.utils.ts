@@ -729,8 +729,6 @@ export function companyConfirmationEmailHtml(
 `;
 }
 
-// ─── Password Reset → user ────────────────────────────────────────────────────
-
 export function passwordResetEmailHtml(name: string, resetToken: string): string {
   const resetUrl = `${API_URL}/auth/reset-password?token=${resetToken}`;
 
@@ -797,5 +795,170 @@ export function passwordResetEmailHtml(name: string, resetToken: string): string
       </table>
     </body>
     </html>
+  `;
+}
+
+export function invitationEmailHtml(
+  user: { name: string; email: string },
+  companyName: string,
+  token: string
+): string {
+  const confirmUrl = `${API_URL}/auth/confirm-invitation?token=${token}`;
+
+  return `
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invitación a ${companyName}</title>
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; }
+      .mobile-padding { padding-left: 24px !important; padding-right: 24px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#F0F4F8;font-family:'Inter',Arial,sans-serif;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F0F4F8;">
+  <tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="email-container" cellspacing="0" cellpadding="0" border="0" width="600"
+           style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+ 
+      <!-- HEADER -->
+      <tr>
+        <td align="center" style="background:linear-gradient(135deg,#1D4ED8 0%,#2563EB 50%,#3B82F6 100%);padding:40px 48px 36px;border-radius:16px 16px 0 0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-bottom:24px;">
+            <tr>
+              <td align="center" valign="middle" style="background:rgba(255,255,255,0.18);border-radius:10px;width:40px;height:40px;">
+                <img src="https://img.icons8.com/ios-filled/50/ffffff/marker.png" width="22" height="22" alt="pin" style="display:block;margin:9px auto;"/>
+              </td>
+              <td width="10"></td>
+              <td align="left" valign="middle" style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;white-space:nowrap;">${APP_NAME}</td>
+            </tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-bottom:16px;">
+            <tr>
+              <td align="center" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:100px;padding:5px 16px;">
+                <span style="font-size:11px;font-weight:600;color:#ffffff;letter-spacing:1.2px;text-transform:uppercase;">Invitación de empresa</span>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:0 0 10px 0;font-size:28px;font-weight:800;color:#ffffff;line-height:1.25;letter-spacing:-0.5px;">
+            Te han invitado a unirte a<br/><span style="color:#93C5FD;">${companyName}</span>
+          </p>
+          <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.82);line-height:1.6;">
+            Acepta la invitación para activar tu cuenta y comenzar a colaborar.
+          </p>
+        </td>
+      </tr>
+ 
+      <!-- BODY -->
+      <tr>
+        <td class="mobile-padding" style="padding:40px 48px;">
+          <p style="margin:0 0 12px 0;font-size:17px;font-weight:600;color:#1E293B;">Hola, ${user.name} 👋</p>
+          <p style="margin:0 0 24px 0;font-size:15px;color:#475569;line-height:1.7;">
+            Has recibido una invitación para unirte al equipo de
+            <strong>${companyName}</strong> en ${APP_NAME}.
+            Haz clic en el botón de abajo para aceptar la invitación y activar tu cuenta.
+          </p>
+          <p style="margin:0 0 32px 0;font-size:14px;color:#64748B;line-height:1.6;">
+            Una vez que aceptes, podrás configurar tu contraseña y comenzar
+            a trabajar con tu equipo de inmediato.
+          </p>
+ 
+          <!-- DATA CARD -->
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+                 style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;margin-bottom:32px;">
+            <tr>
+              <td colspan="2" style="background:#1E293B;padding:14px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="width:8px;height:8px;background:#3B82F6;border-radius:50%;vertical-align:middle;"></td>
+                    <td width="8"></td>
+                    <td style="font-size:12px;font-weight:600;color:#94A3B8;letter-spacing:0.8px;text-transform:uppercase;vertical-align:middle;">Datos de tu invitación</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td width="140" style="padding:14px 20px;font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;">Empresa</td>
+              <td style="padding:14px 20px;font-size:14px;font-weight:600;color:#2563EB;border-bottom:1px solid #E2E8F0;background:#ffffff;">${companyName}</td>
+            </tr>
+            <tr>
+              <td width="140" style="padding:14px 20px;font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;">Correo</td>
+              <td style="padding:14px 20px;font-size:14px;font-weight:500;color:#1E293B;border-bottom:1px solid #E2E8F0;background:#ffffff;">${user.email}</td>
+            </tr>
+            <tr>
+              <td width="140" style="padding:14px 20px;font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.6px;background:#F8FAFC;">Estado</td>
+              <td style="padding:14px 20px;background:#ffffff;">
+                <span style="display:inline-block;background:#FEF9C3;color:#A16207;font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;">⏳ Pendiente de aceptación</span>
+              </td>
+            </tr>
+          </table>
+ 
+          <!-- CTA -->
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:16px;">
+            <tr>
+              <td align="center" style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-radius:10px;">
+                <a href="${confirmUrl}" target="_blank"
+                   style="display:block;padding:16px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;">
+                  Aceptar invitación →
+                </a>
+              </td>
+            </tr>
+          </table>
+ 
+          <!-- Link fallback -->
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px 16px;">
+                <p style="margin:0 0 6px 0;font-size:12px;color:#94A3B8;">¿El botón no funciona? Copia y pega este enlace:</p>
+                <a href="${confirmUrl}" style="font-size:12px;color:#2563EB;word-break:break-all;text-decoration:none;">${confirmUrl}</a>
+              </td>
+            </tr>
+          </table>
+ 
+          <!-- WARNING -->
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr>
+              <td style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:16px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                  <tr>
+                    <td width="28" valign="top" style="font-size:18px;padding-top:1px;">⚠️</td>
+                    <td style="font-size:13px;color:#92400E;line-height:1.6;">
+                      <strong>Este enlace caduca en 24 horas.</strong><br/>
+                      Si no aceptas la invitación antes de que venza, tu cuenta será eliminada automáticamente
+                      y necesitarás que tu administrador te reenvíe la invitación.<br/>
+                      Si no esperabas esta invitación, puedes ignorar este mensaje con total seguridad.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+ 
+      <!-- FOOTER -->
+      <tr>
+        <td align="center" class="mobile-padding" style="background:#1E293B;padding:28px 48px;border-radius:0 0 16px 16px;">
+          <p style="margin:0;font-size:11px;color:#475569;line-height:1.7;">
+            © ${new Date().getFullYear()} ${APP_NAME}. Todos los derechos reservados.<br/>
+            Recibiste este correo porque fuiste invitado a unirte a
+            <strong style="color:#64748B;">${companyName}</strong>.
+          </p>
+        </td>
+      </tr>
+ 
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
   `;
 }

@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import User, { UserRole, UserStatus } from '../entities/User.entity';
 import { EmailService, emailService } from './email.service';
-import { generateBaseNickname, generateNicknameSuffix } from '../utils/nickname.util';
 import { BaseService } from './base.service';
 import jwt from 'jsonwebtoken';
 import { ErrorUtils } from '../utils/error.utils';
@@ -11,8 +10,7 @@ import { signToken } from '../utils/auth.utils';
 import { LoggerUtils } from '../utils/logger.utils';
 import { RefreshToken } from '../entities/RefreshToken';
 import { createServiceResponse } from '../utils/response.util';
-
-// ─── Validation Schemas ───────────────────────────────────────────────────────
+import { resolveUniqueNickname } from '../utils/nickname.util';
 
 export interface TokenPair {
   token: string;
@@ -55,11 +53,20 @@ const ChangePasswordSchema = z.object({
   newPassword: z.string().min(8).regex(/[A-Z]/).regex(/[0-9]/),
 });
 
-export type RegisterInput      = z.infer<typeof RegisterSchema>;
-export type LoginInput         = z.infer<typeof LoginSchema>;
-export type ForgotPasswordInput= z.infer<typeof ForgotPasswordSchema>;
+const InviteUserSchema = z.object({
+  name: z.string().min(2),
+  lastName: z.string().min(2),
+  email: z.string().email(),
+  companyId: z.string().uuid(),
+  role: z.nativeEnum(UserRole).optional(),
+});
+
+export type RegisterInput = z.infer<typeof RegisterSchema>;
+export type LoginInput = z.infer<typeof LoginSchema>;
+export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
-export type ChangePasswordInput= z.infer<typeof ChangePasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
+export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
 export interface AuthPayload {
   token: string;
@@ -67,11 +74,12 @@ export interface AuthPayload {
   user: User;
 }
 
-// ─── Token stores (replace with DB entities in production) ───────────────────
-const accountConfirmStore = new Map<string, { userId: string; expiresAt: Date }>();
-const resetTokenStore     = new Map<string, { userId: string; expiresAt: Date }>();
+const accountConfirmStore = new Map<
+  string,
+  { userId: string; expiresAt: Date }
+>();
+const resetTokenStore = new Map<string, { userId: string; expiresAt: Date }>();
 
-// ─── Service ──────────────────────────────────────────────────────────────────
 
 export class AuthService extends BaseService {
   private readonly emailService: EmailService;
@@ -136,22 +144,12 @@ export class AuthService extends BaseService {
   async register(input: RegisterInput): Promise<{ message: string }> {
     const data = RegisterSchema.parse(input);
 
-    const existing = await this.em.findOne(User, { email: data.email });
-    if (existing) throw ErrorUtils.conflict('Email already in use');
+    const nickname = await resolveUniqueNickname(
+      this.em,
+      data.name,
+      data.lastName
+    );
 
-    // ── Resolve unique nickname ─────────────────────────────────────────────
-    const baseNickname = generateBaseNickname(data.name, data.lastName);
-    let nickname = baseNickname;
-
-    // If base nickname is taken keep trying with a random suffix (max 10 attempts)
-    let attempts = 0;
-    while (await this.em.findOne(User, { nickname })) {
-      nickname =
-        attempts < 10
-          ? generateNicknameSuffix(baseNickname)
-          : `${baseNickname}${Date.now().toString(36)}`;
-      attempts++;
-    }
 
     // Create user as INACTIVE until email is confirmed
     const user = this.em.create(User, {
@@ -193,7 +191,7 @@ export class AuthService extends BaseService {
       user,
       token,
       refreshToken,
-    }
+    };
     return createServiceResponse(200, 'Registration successful', true, {
       ...registerData,
     });
@@ -226,7 +224,7 @@ export class AuthService extends BaseService {
     LoggerUtils.info(`Account confirmed: ${user.email}`);
 
     const authToken = signToken({
-      sub: user.id,
+      id: user.id,
       email: user.email,
       role: user.role,
     });
@@ -241,7 +239,6 @@ export class AuthService extends BaseService {
       { email: data.email },
       { populate: ['company', 'projects'] }
     );
-
 
     if (!user) throw ErrorUtils.unauthorized('Invalid credentials');
     await user.company.users.init();
@@ -309,7 +306,7 @@ export class AuthService extends BaseService {
     LoggerUtils.info(`Password reset for: ${user.email}`);
 
     const authToken = signToken({
-      sub: user.id,
+      id: user.id,
       email: user.email,
       role: user.role,
     });
@@ -325,12 +322,57 @@ export class AuthService extends BaseService {
     if (!user) throw ErrorUtils.notFound('User');
 
     const isValid = await user.comparePassword(currentPassword);
-    if (!isValid) throw ErrorUtils.unauthorized('Current password is incorrect');
+    if (!isValid)
+      throw ErrorUtils.unauthorized('Current password is incorrect');
 
     user.password = newPassword;
     await this.em.flush();
 
     LoggerUtils.info(`Password changed for: ${user.email}`);
     return true;
+  }
+
+  async refreshTokens(refreshTokenStr: string): Promise<AuthPayload> {
+    const rt = await this.em.findOne(
+      RefreshToken,
+      { token: refreshTokenStr },
+      { populate: ['user', 'user.company'] }
+    );
+
+    if (!rt) {
+      throw ErrorUtils.unauthorized('Refresh token inválido');
+    }
+
+    if (rt.expiresAt < new Date()) {
+      this.em.remove(rt);
+      await this.em.flush();
+      throw ErrorUtils.unauthorized(
+        'Refresh token expirado. Por favor, inicia sesión nuevamente.'
+      );
+    }
+
+    const user = rt.user;
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw ErrorUtils.forbidden('El usuario no está activo');
+    }
+    this.em.remove(rt);
+
+    const tokens = await this.createTokensPair(user);
+
+    await this.em.flush();
+
+    LoggerUtils.info(`Tokens refrescados para: ${user.email}`);
+
+    return { ...tokens, user };
+  }
+
+  public createPasswordResetToken(userId: string): string {
+    const token = crypto.randomBytes(32).toString('hex');
+    resetTokenStore.set(token, {
+      userId,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60), // 1 hour
+    });
+    return token;
   }
 }

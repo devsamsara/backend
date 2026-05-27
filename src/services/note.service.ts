@@ -108,7 +108,7 @@ export class NoteService {
     const data = UpdateNoteSchema.parse(input);
     const note = await this.findById(id);
 
-    await note.author.init();
+
     const isAuthor = note.author.id === currentUserId;
     const isAdmin = currentRole !== UserRole.USER;
 
@@ -130,8 +130,6 @@ export class NoteService {
     currentRole: string,
   ): Promise<boolean> {
     const note = await this.findById(id);
-
-    await note.author.init();
     const isAuthor = note.author.id === currentUserId;
     const isAdmin = currentRole !== UserRole.USER;
 
@@ -139,7 +137,8 @@ export class NoteService {
       throw ErrorUtils.forbidden('Only the author or an admin can delete this note');
     }
 
-    await this.em.removeAndFlush(note);
+    this.em.remove(note);
+    await this.em.flush();
     LoggerUtils.info(`Note ${id} deleted`);
     return true;
   }
@@ -152,7 +151,6 @@ export class NoteService {
   ): Promise<Note> {
     const note = await this.findById(id);
 
-    await note.author.init();
     const isAuthor = note.author.id === currentUserId;
     const isAdmin = currentRole !== UserRole.USER;
 

@@ -1,13 +1,14 @@
- import nodemailer, { Transporter } from 'nodemailer';
+import nodemailer, { Transporter } from 'nodemailer';
 import {
   accountConfirmationEmailHtml,
   companyConfirmationEmailHtml,
+  invitationEmailHtml,
   passwordResetEmailHtml,
 } from '../utils/email.templates.utils';
 import dotenv from 'dotenv';
- import {CompanyStatus} from "../entities/Company.entity";
- import User from '../entities/User.entity';
- import { LoggerUtils } from '../utils/logger.utils';
+import { CompanyStatus } from '../entities/Company.entity';
+import User from '../entities/User.entity';
+import { LoggerUtils } from '../utils/logger.utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 dotenv.config();
@@ -27,6 +28,7 @@ export interface CompanyEmailData {
 
 export interface UserEmailData {
   name: string;
+  lastName?: string;
   email: string;
 }
 
@@ -58,21 +60,10 @@ export class EmailService {
     return EmailService.instance;
   }
 
-  private async send(options: MailOptions): Promise<void> {
-    try {
-      await this.transporter.sendMail({ from: this.from, ...options });
-      LoggerUtils.info(`Email sent to ${options.to} — "${options.subject}"`);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      LoggerUtils.error(`Failed to send email to ${options.to}: ${message}`);
-      throw new Error(`Failed to send email: ${message}`);
-    }
-  }
-
   // ── Account confirmation → new user ────────────────────────────────────────
   public async sendAccountConfirmationEmail(
     user: User,
-    confirmToken: string,
+    confirmToken: string
   ): Promise<void> {
     await this.send({
       to: user.email,
@@ -85,7 +76,7 @@ export class EmailService {
   public async sendCompanyConfirmationEmail(
     confirmToken: string,
     company: CompanyEmailData,
-    createdBy: UserEmailData,
+    createdBy: UserEmailData
   ): Promise<void> {
     await this.send({
       to: createdBy.email,
@@ -97,13 +88,36 @@ export class EmailService {
   // ── Password reset → user ───────────────────────────────────────────────────
   public async sendPasswordResetEmail(
     user: UserEmailData,
-    resetToken: string,
+    resetToken: string
   ): Promise<void> {
     await this.send({
       to: user.email,
       subject: 'Restablece tu contraseña',
       html: passwordResetEmailHtml(user.name, resetToken),
     });
+  }
+
+  public async sendInvitationEmail(
+    user: { name: string; email: string },
+    companyName: string,
+    token: string
+  ): Promise<void> {
+    await this.send({
+      to: user.email,
+      subject: `Has sido invitado a unirte a ${companyName} en ${process.env.APP_NAME ?? 'Samsara'}`,
+      html: invitationEmailHtml(user, companyName, token),
+    });
+  }
+
+  private async send(options: MailOptions): Promise<void> {
+    try {
+      await this.transporter.sendMail({ from: this.from, ...options });
+      LoggerUtils.info(`Email sent to ${options.to} — "${options.subject}"`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      LoggerUtils.error(`Failed to send email to ${options.to}: ${message}`);
+      throw new Error(`Failed to send email: ${message}`);
+    }
   }
 }
 

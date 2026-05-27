@@ -4,7 +4,7 @@ import { UserRole } from '../entities/User.entity';
 import dotenv from 'dotenv';
 
 export interface JwtPayload {
-  sub: string;
+  id: string;
   email: string;
   role: UserRole;
   iat?: number;
@@ -21,7 +21,7 @@ export function signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
 
 export function verifyToken(token: string): JwtPayload {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
+    return jwt.verify(token, process.env.JWT_SECRET!) as unknown as JwtPayload;
   } catch {
     throw ErrorUtils.unauthorized('Invalid or expired token');
   }

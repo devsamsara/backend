@@ -34,7 +34,6 @@ export class UserService extends BaseService {
     super(em)
   }
 
-  // ── Find by ID ──────────────────────────────────────────────────────────────
   async findById(id: string): Promise<User> {
     const user = await this.em.findOne(
       User,
@@ -45,12 +44,10 @@ export class UserService extends BaseService {
     return user;
   }
 
-  // ── Me ──────────────────────────────────────────────────────────────────────
   async getMe(currentUserId: string): Promise<User> {
     return this.findById(currentUserId);
   }
 
-  // ── Paginated list with filters ─────────────────────────────────────────────
   async getUsers(currentUserId: string, rawFilters: Partial<UserFiltersInput> = {}) {
     const filters = UserFiltersSchema.parse(rawFilters);
     const { query, roleFilter, stateFilter, page, limit, filterMe } = filters;
@@ -83,7 +80,6 @@ export class UserService extends BaseService {
     return { items, total, page, limit, hasNextPage: offset + items.length < total };
   }
 
-  // ── Update ──────────────────────────────────────────────────────────────────
   async updateUser(
     targetId: string,
     input: UpdateUserInput,
@@ -117,7 +113,6 @@ export class UserService extends BaseService {
     return user;
   }
 
-  // ── Update picture ──────────────────────────────────────────────────────────
   async updateUserPicture(
     userId: string,
     picture: string,
@@ -137,7 +132,6 @@ export class UserService extends BaseService {
     return user;
   }
 
-  // ── Delete ──────────────────────────────────────────────────────────────────
   async deleteUser(targetId: string, currentRole: string): Promise<boolean> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can delete users');

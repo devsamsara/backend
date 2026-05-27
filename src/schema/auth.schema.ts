@@ -44,6 +44,7 @@ export const authTypeDefs = /* GraphQL */ `
     login(input: LoginInput!): AuthPayload!
     forgotPassword(input: ForgotPasswordInput!): Boolean!
     resetPassword(input: ResetPasswordInput!): AuthPayload!
+    refreshToken(token: String!): AuthPayload!
 
     # Protected
     changePassword(input: ChangePasswordInput!): Boolean!

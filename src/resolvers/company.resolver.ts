@@ -3,11 +3,10 @@ import {
   CompanyFiltersInput,
   CompanyService,
   CreateCompanyInput,
+  InviteMemberInput,
   UpdateCompanyInput,
 } from '../services/company.service';
 import { ErrorUtils } from '../utils/error.utils';
-
-// ─── Guards ───────────────────────────────────────────────────────────────────
 
 function requireAuth(context: GraphQLContext) {
   if (!context.user) throw ErrorUtils.unauthorized('You must be logged in');
@@ -38,6 +37,28 @@ const getCompanies = async (
   requireAuth(ctx);
   const service = new CompanyService(ctx.em);
   return service.getCompanies(filters ?? {});
+};
+
+const getDashboardData = async (_: unknown, __: unknown, ctx: GraphQLContext) => {
+  requireAuth(ctx);
+  const service = new CompanyService(ctx.em);
+  return service.getDashboardData(ctx.user!.id);
+}
+
+const getCompanyMembers = async (_: unknown, __: unknown, ctx: GraphQLContext) => {
+  requireAuth(ctx);
+  const service = new CompanyService(ctx.em);
+  return service.getCompanyMembers(ctx.user!.id);
+};
+
+const inviteMember = async (
+  _: unknown,
+  { input }: { input: InviteMemberInput },
+  ctx: GraphQLContext
+) => {
+  const { id } = requireAdminOrRoot(ctx);
+  const service = new CompanyService(ctx.em);
+  return service.inviteMember(id, input);
 };
 
 const createCompany = async (
@@ -82,6 +103,9 @@ export const companyResolvers = {
   Query: {
     findCompany,
     getCompanies,
+    getDashboardData,
+    getCompanyMembers,
+    inviteMember,
   },
   Mutation: {
     createCompany,
