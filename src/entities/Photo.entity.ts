@@ -4,20 +4,19 @@ import User from "./User.entity";
 import {BaseEntity} from "./Base.entity";
 
 @Entity()
-export class PhotoEntity extends BaseEntity{
+export class PhotoEntity extends BaseEntity {
+  @Property({ length: 500 })
+  url: string;
 
-    @Property()
-    url: string;
+  @Property({ nullable: true })
+  caption?: string;
 
-    @Property({ nullable: true })
-    caption?: string;
+  @Property({ type: 'json' })
+  tags: string[] = [];
 
-    @Property({ type: 'json' })
-    tags: string[] = [];
+  @ManyToOne(() => Project)
+  project!: Project;
 
-    @ManyToOne(() => Project)
-    project!: Project;
-
-    @ManyToOne(() => User)
-    uploadedBy!: User;
+  @ManyToOne(() => User)
+  uploadedBy!: User;
 }

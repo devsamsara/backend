@@ -17,6 +17,8 @@ import {
   generateNicknameSuffix,
   resolveUniqueNickname,
 } from '../utils/nickname.util';
+import { persistTimelineEvent } from '../utils/timeline.util';
+import { TimelineEventType } from '../entities/TimelineEvent.entity';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -592,6 +594,18 @@ export class CompanyService extends BaseService {
     }
 
     user.status = UserStatus.ACTIVE;
+
+    await this.em.populate(user, ['projects']);
+    for (const project of user.projects.getItems()) {
+      persistTimelineEvent(
+        this.em,
+        project,
+        TimelineEventType.TEAM,
+        'Invitación aceptada',
+        `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`
+      );
+    }
+
     await this.em.flush();
 
     inviteStore.delete(token);

@@ -47,25 +47,15 @@ export const timelineResolvers = {
   },
 
   Mutation: {
-    /**
-     * Protected — creates a timeline event in a project.
-     * Only project members or admins can create.
-     * Events of type "photo" require a photoUrl.
-     */
     createTimelineEvent: async (
       _: unknown,
       { input }: { input: CreateTimelineEventInput },
       ctx: GraphQLContext,
     ) => {
-      const { sub, role } = requireAuth(ctx);
+      const { id, role } = requireAuth(ctx);
       const service = new TimelineService(ctx.em);
-      return service.createEvent(input, sub, role);
+      return service.createEvent(input, id, role);
     },
-
-    /**
-     * Admin/Root only — updates a timeline event.
-     * Validates that photoUrl is present when type is "photo".
-     */
     updateTimelineEvent: async (
       _: unknown,
       { id, input }: { id: string; input: UpdateTimelineEventInput },

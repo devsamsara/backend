@@ -4,6 +4,8 @@ import { Project, ProjectStatus } from '../entities/Project.entity';
 import User, { UserRole } from '../entities/User.entity';
 import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
+import { persistTimelineEvent } from '../utils/timeline.util';
+import { TimelineEventType } from '../entities/TimelineEvent.entity';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -140,6 +142,15 @@ export class ProjectService {
     }
 
     this.em.persist(project);
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.MILESTONE,
+      'Proyecto creado',
+      `El proyecto "${rest.name}" fue creado`
+    );
+
     await this.em.flush();
     LoggerUtils.info(`Project created: ${project.name}`);
     return project;
@@ -180,6 +191,19 @@ export class ProjectService {
       endDate: data.endDate ? new Date(data.endDate) : undefined,
     });
 
+    const changes = Object.keys(data)
+      .filter(k => k !== 'startDate' && k !== 'endDate')
+      .map(k => k)
+      .join(', ');
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.MILESTONE,
+      'Proyecto actualizado',
+      changes ? `Se actualizaron: ${changes}` : 'Se actualizó el proyecto'
+    );
+
     await this.em.flush();
     LoggerUtils.info(`Project updated: ${project.name}`);
     return project;
@@ -192,7 +216,9 @@ export class ProjectService {
     }
 
     const project = await this.findById(id);
-    await this.em.removeAndFlush(project);
+    this.em.remove(project);
+    await this.em.flush();
+
     LoggerUtils.info(`Project deleted: ${project.name}`);
     return true;
   }
@@ -218,6 +244,15 @@ export class ProjectService {
     if (!user) throw ErrorUtils.notFound('User');
 
     project.members.add(user);
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.TEAM,
+      'Nuevo miembro añadido',
+      `${user.name} ${user.lastName ?? ''} se unió al proyecto`
+    );
+
     await this.em.flush();
 
     LoggerUtils.info(`Member ${user.email} added to project ${project.name}`);
@@ -242,6 +277,15 @@ export class ProjectService {
       throw ErrorUtils.notFound('User is not a member of this project');
 
     project.members.remove(user);
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.TEAM,
+      'Miembro eliminado',
+      `${user.name} ${user.lastName ?? ''} fue eliminado del proyecto`
+    );
+
     await this.em.flush();
 
     LoggerUtils.info(
@@ -279,6 +323,16 @@ export class ProjectService {
     if (progress === 100) project.status = ProjectStatus.COMPLETED;
     else if (progress > 0 && project.status === ProjectStatus.ACTIVE)
       project.status = ProjectStatus.ONGOING;
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.MILESTONE,
+      `Progreso: ${progress}%`,
+      progress === 100
+        ? 'El proyecto se marcó como completado'
+        : `El progreso se actualizó al ${progress}%`
+    );
 
     await this.em.flush();
     return project;
