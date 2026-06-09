@@ -6,8 +6,6 @@ export const projectTypeDefs = /* GraphQL */ `
     completed
     canceled
   }
-  
-
 
   type Photo {
     id: ID!
@@ -77,10 +75,20 @@ export const projectTypeDefs = /* GraphQL */ `
     limit: Int
   }
 
+  type UploadUrlPayload {
+    uploadUrl: String!
+    fileUrl: String!
+  }
+
   extend type Query {
     findProject(id: ID!): Project!
     getProjects(filters: ProjectFiltersInput): PaginatedProjects!
     getMyProjects: [Project!]!
+    getUploadUrl(
+      projectId: ID!
+      fileName: String!
+      mimeType: String!
+    ): UploadUrlPayload!
   }
 
   extend type Mutation {
@@ -90,5 +98,13 @@ export const projectTypeDefs = /* GraphQL */ `
     addProjectMember(projectId: ID!, userId: ID!): Project!
     removeProjectMember(projectId: ID!, userId: ID!): Project!
     updateProjectProgress(id: ID!, progress: Int!): Project!
+    updatePhoto(id: ID!, url: String, caption: String, tags: [String!]): Photo!
+    addPhoto(
+      projectId: ID!
+      url: String!
+      caption: String
+      tags: [String!]
+    ): Photo!
+    deletePhoto(id: ID!): Boolean!
   }
 `;

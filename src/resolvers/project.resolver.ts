@@ -6,6 +6,7 @@ import {
   UpdateProjectInput,
 } from '../services/project.service';
 import { ErrorUtils } from '../utils/error.utils';
+import { PhotoService } from '../services/photo.service';
 
 function requireAuth(context: GraphQLContext) {
   if (!context.user) throw ErrorUtils.unauthorized('You must be logged in');
@@ -42,6 +43,20 @@ const getMyProjects = async (_: unknown, __: unknown, ctx: GraphQLContext) => {
   const { id } = requireAuth(ctx);
   const service = new ProjectService(ctx.em);
   return service.getMyProjects(id);
+};
+
+const getUploadUrl = async (
+  _: unknown,
+  {
+    projectId,
+    fileName,
+    mimeType,
+  }: { projectId: string; fileName: string; mimeType: string },
+  ctx: GraphQLContext
+) => {
+  const { id } = requireAuth(ctx);
+  const service = new PhotoService(ctx.em);
+  return service.getUploadUrl({ projectId, fileName, mimeType }, id);
 };
 
 const createProject = async (
@@ -103,11 +118,54 @@ const updateProjectProgress = async (
   const service = new ProjectService(ctx.em);
   return service.updateProgress(id, progress, userID, role);
 };
+
+const addPhoto = async (
+  _: unknown,
+  {
+    projectId,
+    url,
+    caption,
+    tags,
+  }: {
+    projectId: string;
+    url: string;
+    caption?: string;
+    tags?: string[];
+  },
+  ctx: GraphQLContext
+) => {
+  const { id } = requireAuth(ctx);
+  const service = new PhotoService(ctx.em);
+  return service.addPhoto({ projectId, url, caption, tags }, id);
+};
+const updatePhoto = async (
+  _: unknown,
+  { id, url, caption, tags }: { id: string; url?: string; caption?: string; tags?: string[] },
+  ctx: GraphQLContext,
+) => {
+  const { id: userId, role } = requireAuth(ctx);
+  const service = new PhotoService(ctx.em);
+  return service.updatePhoto(id, { url, caption, tags }, userId, role);
+};
+
+
+const deletePhoto = async (
+  _: unknown,
+  { id }: { id: string },
+  ctx: GraphQLContext
+) => {
+  const { id: userId, role } = requireAuth(ctx);
+  const service = new PhotoService(ctx.em);
+  return service.deletePhoto(id, userId, role);
+};
+
+
 export const projectResolvers = {
   Query: {
     findProject,
     getProjects,
     getMyProjects,
+    getUploadUrl
   },
 
   Mutation: {
@@ -117,5 +175,8 @@ export const projectResolvers = {
     removeProjectMember,
     addProjectMember,
     updateProjectProgress,
+    addPhoto,
+    deletePhoto,
+    updatePhoto
   },
 };

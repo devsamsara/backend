@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/core';
 import { Seeder } from '@mikro-orm/seeder';
-import { User, UserRole } from '../../entities/User.entity';
+import User, { UserRole } from '../entities/User.entity';
 
 export class UserSeeder extends Seeder {
   async run(em: EntityManager): Promise<void> {
@@ -19,7 +19,6 @@ export class UserSeeder extends Seeder {
       email: 'john@example.com',
       password: 'User1234!',
       role: UserRole.USER,
-      bio: 'Regular test user',
     });
 
     await em.persistAndFlush([admin, user]);

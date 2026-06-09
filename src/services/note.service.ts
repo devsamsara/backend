@@ -5,6 +5,8 @@ import { Project } from '../entities/Project.entity';
 import User, { UserRole } from '../entities/User.entity';
 import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
+import { persistTimelineEvent } from '../utils/timeline.util';
+import { TimelineEventType } from '../entities/TimelineEvent.entity';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -90,6 +92,15 @@ export class NoteService {
     });
 
     this.em.persist(note);
+
+    persistTimelineEvent(
+      this.em,
+      project,
+      TimelineEventType.NOTE,
+      'Nueva nota añadida',
+      content.length > 80 ? `${content.slice(0, 80)}…` : content
+    );
+
     await this.em.flush();
 
     LoggerUtils.info(
@@ -117,6 +128,19 @@ export class NoteService {
     }
 
     this.em.assign(note, data);
+
+    await this.em.populate(note, ['project']);
+
+    persistTimelineEvent(
+      this.em,
+      note.project,
+      TimelineEventType.NOTE,
+      'Nota actualizada',
+      note.content.length > 80
+        ? `${note.content.slice(0, 80)}…`
+        : note.content,
+    );
+
     await this.em.flush();
 
     LoggerUtils.info(`Note ${id} updated`);
@@ -138,6 +162,19 @@ export class NoteService {
     }
 
     this.em.remove(note);
+
+    await this.em.populate(note, ['project']);
+
+    persistTimelineEvent(
+      this.em,
+      note.project,
+      TimelineEventType.NOTE,
+      'Nota eliminada',
+      note.content.length > 80
+        ? `Se eliminó: "${note.content.slice(0, 80)}…"`
+        : `Se eliminó: "${note.content}"`
+    );
+
     await this.em.flush();
     LoggerUtils.info(`Note ${id} deleted`);
     return true;
