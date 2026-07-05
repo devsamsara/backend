@@ -7,6 +7,7 @@ import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { NotificationService } from './notification.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -27,7 +28,11 @@ export type UpdateNoteInput = z.infer<typeof UpdateNoteSchema>;
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class NoteService {
-  constructor(private readonly em: EntityManager) {}
+  private readonly notifications: NotificationService;
+
+  constructor(private readonly em: EntityManager) {
+    this.notifications = new NotificationService(em);
+  }
 
   // ── Find by ID ──────────────────────────────────────────────────────────────
   async findById(id: string): Promise<Note> {
@@ -106,6 +111,16 @@ export class NoteService {
     LoggerUtils.info(
       `Note created in project ${project.name} by user ${currentUserId}`
     );
+
+    // Notify all project members except the author — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Nueva nota en ${project.name}`,
+      content.length > 80 ? `${content.slice(0, 80)}…` : content,
+      currentUserId,
+      { type: 'NOTE_CREATED', projectId: project.id, noteId: note.id }
+    );
+
     return note;
   }
 
@@ -118,7 +133,6 @@ export class NoteService {
   ): Promise<Note> {
     const data = UpdateNoteSchema.parse(input);
     const note = await this.findById(id);
-
 
     const isAuthor = note.author.id === currentUserId;
     const isAdmin = currentRole !== UserRole.USER;
@@ -144,6 +158,16 @@ export class NoteService {
     await this.em.flush();
 
     LoggerUtils.info(`Note ${id} updated`);
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      note.project.id,
+      `Nota actualizada en ${note.project.name}`,
+      note.content.length > 80 ? `${note.content.slice(0, 80)}…` : note.content,
+      currentUserId,
+      { type: 'NOTE_UPDATED', projectId: note.project.id, noteId: note.id }
+    );
+
     return note;
   }
 
@@ -165,18 +189,30 @@ export class NoteService {
 
     await this.em.populate(note, ['project']);
 
+    const preview = note.content.length > 80
+      ? `Se eliminó: "${note.content.slice(0, 80)}…"`
+      : `Se eliminó: "${note.content}"`;
+
     persistTimelineEvent(
       this.em,
       note.project,
       TimelineEventType.NOTE,
       'Nota eliminada',
-      note.content.length > 80
-        ? `Se eliminó: "${note.content.slice(0, 80)}…"`
-        : `Se eliminó: "${note.content}"`
+      preview
     );
 
     await this.em.flush();
     LoggerUtils.info(`Note ${id} deleted`);
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      note.project.id,
+      `Nota eliminada en ${note.project.name}`,
+      preview,
+      currentUserId,
+      { type: 'NOTE_DELETED', projectId: note.project.id }
+    );
+
     return true;
   }
 

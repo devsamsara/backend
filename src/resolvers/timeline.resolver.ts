@@ -56,14 +56,15 @@ export const timelineResolvers = {
       const service = new TimelineService(ctx.em);
       return service.createEvent(input, id, role);
     },
+
     updateTimelineEvent: async (
       _: unknown,
       { id, input }: { id: string; input: UpdateTimelineEventInput },
       ctx: GraphQLContext,
     ) => {
-      const { role } = requireAuth(ctx);
+      const { id: currentUserId, role } = requireAuth(ctx);
       const service = new TimelineService(ctx.em);
-      return service.updateEvent(id, input, role);
+      return service.updateEvent(id, input, currentUserId, role);
     },
 
     /**
@@ -74,9 +75,9 @@ export const timelineResolvers = {
       { id }: { id: string },
       ctx: GraphQLContext,
     ) => {
-      const { role } = requireAuth(ctx);
+      const { id: currentUserId, role } = requireAuth(ctx);
       const service = new TimelineService(ctx.em);
-      return service.deleteEvent(id, role);
+      return service.deleteEvent(id, currentUserId, role);
     },
   },
 };

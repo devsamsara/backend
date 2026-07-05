@@ -38,7 +38,11 @@ export type TimelineFiltersInput = z.infer<typeof TimelineFiltersSchema>;
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class TimelineService {
-  constructor(private readonly em: EntityManager) {}
+  private readonly notifications: NotificationService;
+
+  constructor(private readonly em: EntityManager) {
+    this.notifications = new NotificationService(em);
+  }
 
   // ── Find by ID ──────────────────────────────────────────────────────────────
   async findById(id: string): Promise<TimelineEvent> {
@@ -108,13 +112,12 @@ export class TimelineService {
     );
 
     // Notify all project members except the actor — fire and forget
-    const notificationService = new NotificationService(this.em);
-    await notificationService.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Nuevo evento en ${project.name}`,
       event.title,
       currentUserId,
-      { type: 'TIMELINE_EVENT', projectId: project.id, eventId: event.id }
+      { type: 'TIMELINE_EVENT_CREATED', projectId: project.id, eventId: event.id }
     );
 
     return event;
@@ -124,6 +127,7 @@ export class TimelineService {
   async updateEvent(
     id: string,
     input: UpdateTimelineEventInput,
+    currentUserId: string,
     currentRole: string,
   ): Promise<TimelineEvent> {
     const data = UpdateTimelineEventSchema.parse(input);
@@ -145,19 +149,46 @@ export class TimelineService {
     await this.em.flush();
 
     LoggerUtils.info(`Timeline event ${id} updated`);
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      event.project.id,
+      `Evento actualizado en ${event.project.name}`,
+      event.title,
+      currentUserId,
+      { type: 'TIMELINE_EVENT_UPDATED', projectId: event.project.id, eventId: event.id }
+    );
+
     return event;
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
-  async deleteEvent(id: string, currentRole: string): Promise<boolean> {
+  async deleteEvent(
+    id: string,
+    currentUserId: string,
+    currentRole: string,
+  ): Promise<boolean> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can delete timeline events');
     }
 
     const event = await this.findById(id);
+    const { project } = event;
+    const eventTitle = event.title;
+
     await this.em.removeAndFlush(event);
 
     LoggerUtils.info(`Timeline event ${id} deleted`);
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Evento eliminado en ${project.name}`,
+      `Se eliminó el evento "${eventTitle}"`,
+      currentUserId,
+      { type: 'TIMELINE_EVENT_DELETED', projectId: project.id }
+    );
+
     return true;
   }
 }

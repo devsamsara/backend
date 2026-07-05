@@ -601,27 +601,31 @@ export class CompanyService extends BaseService {
     user.status = UserStatus.ACTIVE;
 
     await this.em.populate(user, ['projects']);
-    for (const project of user.projects.getItems()) {
+
+    const projects = user.projects.getItems();
+    const fullName = `${user.name} ${user.lastName ?? ''}`.trim();
+
+    // Persist a timeline event for every project the user belongs to — sync, same transaction
+    projects.forEach(project =>
       persistTimelineEvent(
         this.em,
         project,
         TimelineEventType.TEAM,
         'Invitación aceptada',
-        `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`
-      );
-    }
+        `${fullName} aceptó la invitación y se unió al equipo`
+      )
+    );
 
     await this.em.flush();
 
-    const projects = user.projects.getItems();
-
+    // Notify members of every project in parallel — fire and forget
     await Promise.allSettled(
       projects.map(project =>
         this.notifications
           .notifyProjectMembers(
             project.id,
             `Nuevo miembro en ${project.name}`,
-            `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`,
+            `${fullName} aceptó la invitación y se unió al equipo`,
             user.id,
             {
               type: 'INVITATION_ACCEPTED',

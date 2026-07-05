@@ -9,6 +9,7 @@ import { LoggerUtils } from '../utils/logger.utils';
 import { storageService } from './storage.service';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { NotificationService } from './notification.service';
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -31,7 +32,11 @@ export type GetUploadUrlInput = z.infer<typeof GetUploadUrlSchema>;
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class PhotoService {
-  constructor(private readonly em: EntityManager) {}
+  private readonly notifications: NotificationService;
+
+  constructor(private readonly em: EntityManager) {
+    this.notifications = new NotificationService(em);
+  }
 
   /**
    * Generates a presigned S3 URL so the client can upload a photo directly.
@@ -40,7 +45,7 @@ export class PhotoService {
   async getUploadUrl(input: GetUploadUrlInput, currentUserId: string) {
     const { projectId, fileName, mimeType } = GetUploadUrlSchema.parse(input);
     let folderId: string | undefined = projectId;
-    if(projectId) {
+    if (projectId) {
       const project = await this.em.findOne(
         Project,
         { id: projectId },
@@ -56,7 +61,7 @@ export class PhotoService {
       }
     }
 
-    folderId = currentUserId
+    folderId = currentUserId;
     const dir = projectId ? 'projects' : 'avatars';
     return storageService.getPresignedUploadUrl(
       `${dir}/${folderId}/photos`,
@@ -87,11 +92,11 @@ export class PhotoService {
 
     const uploader = this.em.getReference(User, currentUserId);
 
-    let photo = undefined;
+    let photo: PhotoEntity;
 
-    if(caption?.startsWith('thumbnail_')) {
+    if (caption?.startsWith('thumbnail_')) {
       project.thumbnail = url;
-      this.em.persist(project)
+      this.em.persist(project);
       photo = Object.assign(new PhotoEntity(), {
         url,
         caption: caption ?? undefined,
@@ -110,17 +115,30 @@ export class PhotoService {
       this.em.persist(photo);
     }
 
-
     persistTimelineEvent(
       this.em,
       project,
       TimelineEventType.PHOTO,
       'Nueva foto añadida',
-      `Se añadió una foto al proyecto`,
+      caption && !caption.startsWith('thumbnail_')
+        ? `Se añadió la foto "${caption}"`
+        : 'Se añadió una foto al proyecto',
       url
     );
+
     await this.em.flush();
     LoggerUtils.info(`Photo added to project ${project.name}: ${url}`);
+
+    // Notify all project members except the uploader — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Nueva foto en ${project.name}`,
+      caption && !caption.startsWith('thumbnail_')
+        ? `Se añadió la foto "${caption}"`
+        : 'Se añadió una nueva foto al proyecto',
+      currentUserId,
+      { type: 'PHOTO_ADDED', projectId: project.id, photoId: photo.id }
+    );
 
     return photo;
   }
@@ -162,8 +180,19 @@ export class PhotoService {
     );
 
     await this.em.flush();
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      photo.project.id,
+      `Foto actualizada en ${photo.project.name}`,
+      'Se actualizó una foto del proyecto',
+      currentUserId,
+      { type: 'PHOTO_UPDATED', projectId: photo.project.id, photoId: photo.id }
+    );
+
     return photo;
   }
+
   /**
    * Deletes a photo record from DB and its file from S3.
    * Only the uploader or an admin can delete.
@@ -196,18 +225,30 @@ export class PhotoService {
 
     await this.em.populate(photo, ['project']);
 
+    const description = photo.caption
+      ? `Se eliminó la foto "${photo.caption}"`
+      : 'Se eliminó una foto del proyecto';
+
     persistTimelineEvent(
       this.em,
       photo.project,
       TimelineEventType.PHOTO,
       'Foto eliminada',
-      photo.caption
-        ? `Se eliminó la foto "${photo.caption}"`
-        : 'Se eliminó una foto del proyecto'
+      description
     );
 
     await this.em.flush();
     LoggerUtils.info(`Photo deleted: ${photoId}`);
+
+    // Notify all project members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      photo.project.id,
+      `Foto eliminada en ${photo.project.name}`,
+      description,
+      currentUserId,
+      { type: 'PHOTO_DELETED', projectId: photo.project.id }
+    );
+
     return true;
   }
 }
