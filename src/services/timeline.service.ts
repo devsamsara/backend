@@ -109,7 +109,7 @@ export class TimelineService {
 
     // Notify all project members except the actor — fire and forget
     const notificationService = new NotificationService(this.em);
-    notificationService.notifyProjectMembers(
+    await notificationService.notifyProjectMembers(
       project.id,
       `Nuevo evento en ${project.name}`,
       event.title,

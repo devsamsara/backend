@@ -154,7 +154,7 @@ export class ProjectService {
     LoggerUtils.info(`Project created: ${project.name}`);
 
     // Notify all members except the creator — fire and forget
-    this.notifications.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Nuevo proyecto: ${project.name}`,
       `Has sido añadido al proyecto "${project.name}"`,
@@ -217,14 +217,14 @@ export class ProjectService {
       project,
       TimelineEventType.MILESTONE,
       'Proyecto actualizado',
-      changes ? `Se actualizaron: ${changes}` : 'Se actualizó el proyecto'
+      'Hay novedades en tu proyecto'
     );
 
     await this.em.flush();
     LoggerUtils.info(`Project updated: ${project.name}`);
 
     // Notify all members except the actor — fire and forget
-    this.notifications.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Actualización en ${project.name}`,
       changes ? `Se actualizaron: ${changes}` : 'El proyecto fue actualizado',
@@ -308,7 +308,7 @@ export class ProjectService {
 
     // Notify all existing members (including the new one) — fire and forget
     // actorId is undefined here since addMember doesn't receive currentUserId
-    this.notifications.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Nuevo miembro en ${project.name}`,
       `${user.name} ${user.lastName ?? ''} se unió al proyecto`,
@@ -352,7 +352,7 @@ export class ProjectService {
     );
 
     // Notify remaining members — fire and forget
-    this.notifications.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Cambio de equipo en ${project.name}`,
       `${user.name} ${user.lastName ?? ''} fue eliminado del proyecto`,
@@ -409,7 +409,7 @@ export class ProjectService {
     await this.em.flush();
 
     // Notify all members except the actor — fire and forget
-    this.notifications.notifyProjectMembers(
+    await this.notifications.notifyProjectMembers(
       project.id,
       `Progreso actualizado en ${project.name}`,
       progressDescription,

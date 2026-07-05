@@ -106,7 +106,7 @@ export class CompanyService extends BaseService {
     if (size) where.size = size;
 
     const offset = (page - 1) * limit;
-    const [items, total] = await this.em.findAndCount(Company, where as never, {
+    const [items, total] = await this.em.findAndCount(Company, where, {
       limit,
       offset,
       orderBy: { name: 'ASC' },
@@ -270,7 +270,8 @@ export class CompanyService extends BaseService {
       );
     }
 
-    await this.em.removeAndFlush(company);
+    this.em.remove(company);
+    await this.em.flush();
     LoggerUtils.info(`Company deleted: ${company.name}`);
     return true;
   }
@@ -612,16 +613,27 @@ export class CompanyService extends BaseService {
 
     await this.em.flush();
 
-    // Notify all members of each project the new user joined — fire and forget
-    for (const project of user.projects.getItems()) {
-      this.notifications.notifyProjectMembers(
-        project.id,
-        `Nuevo miembro en ${project.name}`,
-        `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`,
-        user.id,  // exclude the new member themselves
-        { type: 'INVITATION_ACCEPTED', projectId: project.id, userId: user.id }
-      );
-    }
+    const projects = user.projects.getItems();
+
+    await Promise.allSettled(
+      projects.map(project =>
+        this.notifications
+          .notifyProjectMembers(
+            project.id,
+            `Nuevo miembro en ${project.name}`,
+            `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`,
+            user.id,
+            {
+              type: 'INVITATION_ACCEPTED',
+              projectId: project.id,
+              userId: user.id,
+            }
+          )
+          .catch(err =>
+            LoggerUtils.error(`Failed to notify project ${project.id}`, { err })
+          )
+      )
+    );
 
     inviteStore.delete(token);
     LoggerUtils.info(`Invitation accepted: ${user.email}`);
