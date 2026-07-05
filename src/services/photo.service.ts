@@ -20,7 +20,7 @@ const AddPhotoSchema = z.object({
 });
 
 const GetUploadUrlSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().optional(),
   fileName:  z.string().min(1),
   mimeType:  z.string().min(1),
 });
@@ -39,23 +39,27 @@ export class PhotoService {
    */
   async getUploadUrl(input: GetUploadUrlInput, currentUserId: string) {
     const { projectId, fileName, mimeType } = GetUploadUrlSchema.parse(input);
+    let folderId: string | undefined = projectId;
+    if(projectId) {
+      const project = await this.em.findOne(
+        Project,
+        { id: projectId },
+        { populate: ['members'] }
+      );
+      if (!project) throw ErrorUtils.notFound('Project');
 
-    const project = await this.em.findOne(
-      Project,
-      { id: projectId },
-      { populate: ['members'] }
-    );
-    if (!project) throw ErrorUtils.notFound('Project');
-
-    const isMember = project.members
-      .getItems()
-      .some(u => u.id === currentUserId);
-    if (!isMember) {
-      throw ErrorUtils.forbidden('Only project members can upload photos');
+      const isMember = project.members
+        .getItems()
+        .some(u => u.id === currentUserId);
+      if (!isMember) {
+        throw ErrorUtils.forbidden('Only project members can upload photos');
+      }
     }
 
+    folderId = currentUserId
+    const dir = projectId ? 'projects' : 'avatars';
     return storageService.getPresignedUploadUrl(
-      `projects/${projectId}/photos`,
+      `${dir}/${folderId}/photos`,
       fileName,
       mimeType
     );
@@ -83,15 +87,29 @@ export class PhotoService {
 
     const uploader = this.em.getReference(User, currentUserId);
 
-    const photo = this.em.create(PhotoEntity, {
-      url,
-      caption: caption ?? undefined,
-      tags: tags ?? [],
-      project,
-      uploadedBy: uploader,
-    });
+    let photo = undefined;
 
-    this.em.persist(photo);
+    if(caption?.startsWith('thumbnail_')) {
+      project.thumbnail = url;
+      this.em.persist(project)
+      photo = Object.assign(new PhotoEntity(), {
+        url,
+        caption: caption ?? undefined,
+        tags: tags ?? [],
+        project,
+        uploadedBy: uploader,
+      });
+    } else {
+      photo = this.em.create(PhotoEntity, {
+        url,
+        caption: caption ?? undefined,
+        tags: tags ?? [],
+        project,
+        uploadedBy: uploader,
+      });
+      this.em.persist(photo);
+    }
+
 
     persistTimelineEvent(
       this.em,
@@ -102,8 +120,8 @@ export class PhotoService {
       url
     );
     await this.em.flush();
-
     LoggerUtils.info(`Photo added to project ${project.name}: ${url}`);
+
     return photo;
   }
 

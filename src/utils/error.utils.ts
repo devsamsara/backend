@@ -43,6 +43,10 @@ export class ErrorUtils extends Error {
     return new ErrorUtils(message, ErrorCode.CONFLICT, 409);
   }
 
+  static internal(message: string): ErrorUtils {
+    return new ErrorUtils(message, ErrorCode.INTERNAL, 500);
+  }
+
   toGraphQLError(): GraphQLError {
     return new GraphQLError(this.message, {
       extensions: {

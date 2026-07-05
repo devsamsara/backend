@@ -6,6 +6,8 @@ import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { definedOnly } from '../utils/object.util';
+import { storageService } from './storage.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -15,8 +17,13 @@ const CreateProjectSchema = z.object({
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   thumbnail: z.string().url().optional(),
-  description: z.string().min(10).optional(),
-  startDate: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string().min(1).max(30)).max(20).optional(),
+  startDate: z
+    .string()
+    .datetime({ offset: true })
+    .or(z.string().date())
+    .optional(),
   endDate: z
     .string()
     .datetime({ offset: true })
@@ -34,6 +41,7 @@ const UpdateProjectSchema = z.object({
   description: z.string().min(10).optional(),
   status: z.string().optional(),
   progress: z.number().int().min(0).max(100).optional(),
+  tags: z.array(z.string().min(1).max(30)).max(20).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -184,12 +192,19 @@ export class ProjectService {
       throw ErrorUtils.badRequest('Progress must be between 0 and 100');
     }
 
-    this.em.assign(project, {
-      ...data,
-      status: data.status as ProjectStatus,
-      startDate: data.startDate ? new Date(data.startDate) : undefined,
-      endDate: data.endDate ? new Date(data.endDate) : undefined,
-    });
+    this.em.assign(
+      project,
+      definedOnly({
+        ...data,
+        status: data.status as ProjectStatus,
+        startDate: data.startDate
+          ? new Date(Number.parseInt(data.startDate))
+          : undefined,
+        endDate: data.endDate
+          ? new Date(Number.parseInt(data.endDate))
+          : undefined,
+      })
+    );
 
     const changes = Object.keys(data)
       .filter(k => k !== 'startDate' && k !== 'endDate')
@@ -210,16 +225,40 @@ export class ProjectService {
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
-  async deleteProject(id: string, currentRole: string): Promise<boolean> {
+  async deleteProject(id: string, currentRole: string, currentUserId: string): Promise<boolean> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can delete projects');
     }
+    const project = await this.em.findOneOrFail(
+      Project,
+      { id },
+      { populate: ['photos', 'members'] }
+    );
 
-    const project = await this.findById(id);
+    // Guard: solo el admin/root o miembro con permisos puede borrar
+    const isMember = project.members
+      .getItems()
+      .some(m => m.id === currentUserId);
+    if (!isMember) throw ErrorUtils.forbidden('Not a project member');
+
+    // 1. Borrar archivos de S3 antes de tocar la BD
+    const deletePromises = project.photos
+      .getItems()
+      .filter(p => !!p.url)
+      .map(p =>
+        storageService.deleteFile(p.url).catch(err => {
+          LoggerUtils.warn(
+            `Failed to delete S3 object for photo ${p.id}: ${err.message}`
+          );
+        })
+      );
+
+    await Promise.all(deletePromises);
+
+    // 2. Borrar el proyecto — la BD se encarga del resto via ON DELETE CASCADE
     this.em.remove(project);
     await this.em.flush();
 
-    LoggerUtils.info(`Project deleted: ${project.name}`);
     return true;
   }
 

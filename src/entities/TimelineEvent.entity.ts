@@ -11,20 +11,19 @@ export enum TimelineEventType {
 }
 
 @Entity()
-export class TimelineEvent extends BaseEntity{
+export class TimelineEvent extends BaseEntity {
+  @Property()
+  title: string;
 
-    @Property()
-    title: string;
+  @Property({ type: 'text' })
+  description: string;
 
-    @Property({ type: 'text' })
-    description: string;
+  @Enum(() => TimelineEventType)
+  type: TimelineEventType; //
 
-    @Enum(() => TimelineEventType)
-    type: TimelineEventType; //
+  @Property({ nullable: true })
+  photoUrl?: string; // Para eventos tipo "photo"
 
-    @Property({ nullable: true })
-    photoUrl?: string; // Para eventos tipo "photo"
-
-    @ManyToOne(() => Project)
-    project!: Project;
+  @ManyToOne(() => Project, { inversedBy: 'timeline', deleteRule: 'cascade' })
+  project!: Project;
 }

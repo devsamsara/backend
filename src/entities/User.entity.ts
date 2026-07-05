@@ -15,7 +15,8 @@ import {BaseEntity} from "./Base.entity";
 import {Company} from "./Company.entity";
 import {Project} from "./Project.entity";
 import { generateBaseNickname } from '../utils/nickname.util';
-import { RefreshToken } from './RefreshToken';
+import { RefreshTokenEntity } from './RefreshToken.entity';
+import { PushToken } from './PushToken.entity';
 
 export enum UserRole {
     ADMIN = 'admin',
@@ -58,16 +59,24 @@ class User extends BaseEntity {
   @Property({ length: 255, hidden: true })
   password!: string;
 
-  @ManyToOne({ entity: () => Company, inversedBy: 'users', nullable: false, deleteRule: "set null" })
+  @ManyToOne({
+    entity: () => Company,
+    inversedBy: 'users',
+    nullable: false,
+    deleteRule: 'set null',
+  })
   company!: Company;
 
   @ManyToMany(() => Project, project => project.members)
   projects = new Collection<Project>(this);
 
-  @OneToMany(() => RefreshToken, refreshToken => refreshToken.user, {
+  @OneToMany(() => RefreshTokenEntity, refreshToken => refreshToken.user, {
     lazy: true,
   })
-  refreshTokens = new Collection<RefreshToken>(this);
+  refreshTokens = new Collection<RefreshTokenEntity>(this);
+
+  @OneToMany(() => PushToken, pushToken => pushToken.user, { lazy: true })
+  pushTokens = new Collection<PushToken>(this);
 
   @OneToMany({ entity: () => Company, mappedBy: 'owner' })
   companies = new Collection<Company>(this);

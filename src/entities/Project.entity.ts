@@ -1,6 +1,6 @@
 import {Collection, Entity, Enum, ManyToMany, OneToMany, Property} from "@mikro-orm/core";
 import {BaseEntity} from "./Base.entity";
-import User, { UserRole } from './User.entity';
+import User from './User.entity';
 import {PhotoEntity} from "./Photo.entity";
 import {TimelineEvent} from "./TimelineEvent.entity";
 import {Note} from "./Note.entity";
@@ -11,6 +11,7 @@ export enum ProjectStatus {
   PAUSED = 'paused',
   COMPLETED = 'completed',
   CANCELED = 'canceled',
+  ARCHIVED = 'archived',
 }
 
 @Entity()
@@ -38,7 +39,6 @@ export class Project extends BaseEntity {
 
   @Property({ default: 0 })
   progress: number;
-
   @Property()
   startDate: Date;
 
@@ -56,4 +56,7 @@ export class Project extends BaseEntity {
 
   @OneToMany(() => TimelineEvent, event => event.project)
   timeline = new Collection<TimelineEvent>(this);
+
+  @Property({ type: 'json' })
+  tags: string[] = [];
 }

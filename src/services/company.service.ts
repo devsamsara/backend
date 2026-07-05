@@ -419,7 +419,7 @@ export class CompanyService extends BaseService {
       id: photo.id,
       projectName: photo.project.name,
       url: photo.url,
-      date: photo.createdAt.toISOString(),
+      date: photo.createdAt,
     }));
 
     return {

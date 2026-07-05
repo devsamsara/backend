@@ -86,7 +86,7 @@ const deleteProject = async (
 ) => {
   const { role } = requireAdminOrRoot(ctx);
   const service = new ProjectService(ctx.em);
-  return service.deleteProject(id, role);
+  return service.deleteProject(id, role, ctx.user!.id);
 };
 
 const addProjectMember = async (
