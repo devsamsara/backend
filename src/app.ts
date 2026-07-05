@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { expressMiddleware } from '@as-integrations/express4';
 import { LoggerUtils } from './utils/logger.utils';
 import authRoutes from './routes/auth.routes';
+import { ErrorUtils } from './utils/error.utils';
 
 dotenv.config();
 export async function createApp(): Promise<Express> {
@@ -44,6 +45,9 @@ export async function createApp(): Promise<Express> {
     resolvers,
     introspection: process.env.NODE_ENV !== 'production',
     formatError: (formattedError, error) => {
+      if (error instanceof ErrorUtils) {
+        return error.toGraphQLError();
+      }
       LoggerUtils.error('GraphQL error', { error: formattedError });
       return formattedError;
     },

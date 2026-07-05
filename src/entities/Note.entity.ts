@@ -14,7 +14,6 @@ export class Note extends BaseEntity {
   @ManyToOne(() => User)
   author!: User; // Relación con el usuario que la creó
 
-  @ManyToOne(() => Project)
+  @ManyToOne(() => Project, { inversedBy: 'notes', deleteRule: 'cascade' })
   project!: Project; // La nota pertenece a un proyecto
-
 }

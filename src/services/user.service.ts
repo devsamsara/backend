@@ -31,14 +31,19 @@ export type UserFiltersInput = z.infer<typeof UserFiltersSchema>;
 
 export class UserService extends BaseService {
   constructor(em: EntityManager) {
-    super(em)
+    super(em);
   }
 
   async findById(id: string): Promise<User> {
     const user = await this.em.findOne(
       User,
       { id },
-      { populate: ['company', 'projects'] },
+      {
+        populate: [
+          'company',
+          'projects.*'
+        ],
+      }
     );
     if (!user) throw ErrorUtils.notFound('User');
     return user;
@@ -48,7 +53,10 @@ export class UserService extends BaseService {
     return this.findById(currentUserId);
   }
 
-  async getUsers(currentUserId: string, rawFilters: Partial<UserFiltersInput> = {}) {
+  async getUsers(
+    currentUserId: string,
+    rawFilters: Partial<UserFiltersInput> = {}
+  ) {
     const filters = UserFiltersSchema.parse(rawFilters);
     const { query, roleFilter, stateFilter, page, limit, filterMe } = filters;
 
@@ -77,14 +85,20 @@ export class UserService extends BaseService {
       orderBy: { createdAt: 'DESC' },
     });
 
-    return { items, total, page, limit, hasNextPage: offset + items.length < total };
+    return {
+      items,
+      total,
+      page,
+      limit,
+      hasNextPage: offset + items.length < total,
+    };
   }
 
   async updateUser(
     targetId: string,
     input: UpdateUserInput,
     currentUserId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<User> {
     const data = UpdateUserSchema.parse(input);
 
@@ -95,11 +109,13 @@ export class UserService extends BaseService {
 
     // Only admin/root can change role or status
     if ((data.role || data.status) && currentRole === UserRole.USER) {
-      throw ErrorUtils.forbidden('Insufficient permissions to change role or status');
+      throw ErrorUtils.forbidden(
+        'Insufficient permissions to change role or status'
+      );
     }
 
     const user = await this.findById(targetId);
-    await user.company.users.init()
+    await user.company.users.init();
 
     if (data.email && data.email !== user.email) {
       const existing = await this.em.findOne(User, { email: data.email });
@@ -117,16 +133,16 @@ export class UserService extends BaseService {
     userId: string,
     picture: string,
     currentUserId: string,
-    currentRole: string,
+    currentRole: string
   ): Promise<User> {
     if (userId !== currentUserId && currentRole === UserRole.USER) {
-      throw ErrorUtils.forbidden('Cannot update another user\'s picture');
+      throw ErrorUtils.forbidden("Cannot update another user's picture");
     }
 
     const user = await this.findById(userId);
 
     // picture field: add @Property({ nullable: true }) picture?: string to your entity
-    (user as unknown as Record<string, unknown>).picture = picture;
+    user.avatarUrl = picture;
     await this.em.flush();
 
     return user;

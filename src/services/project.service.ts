@@ -6,6 +6,9 @@ import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { definedOnly } from '../utils/object.util';
+import { storageService } from './storage.service';
+import { NotificationService } from './notification.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -15,8 +18,13 @@ const CreateProjectSchema = z.object({
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   thumbnail: z.string().url().optional(),
-  description: z.string().min(10).optional(),
-  startDate: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string().min(1).max(30)).max(20).optional(),
+  startDate: z
+    .string()
+    .datetime({ offset: true })
+    .or(z.string().date())
+    .optional(),
   endDate: z
     .string()
     .datetime({ offset: true })
@@ -34,6 +42,7 @@ const UpdateProjectSchema = z.object({
   description: z.string().min(10).optional(),
   status: z.string().optional(),
   progress: z.number().int().min(0).max(100).optional(),
+  tags: z.array(z.string().min(1).max(30)).max(20).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -41,8 +50,9 @@ const UpdateProjectSchema = z.object({
 const ProjectFiltersSchema = z.object({
   query: z.string().optional(),
   status: z.string().optional(),
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(100).default(10),
+  tags: z.array(z.string()).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>;
@@ -52,7 +62,11 @@ export type ProjectFiltersInput = z.infer<typeof ProjectFiltersSchema>;
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class ProjectService {
-  constructor(private readonly em: EntityManager) {}
+  private readonly notifications: NotificationService;
+
+  constructor(private readonly em: EntityManager) {
+    this.notifications = new NotificationService(this.em);
+  }
 
   // ── Find by ID ──────────────────────────────────────────────────────────────
   async findById(id: string): Promise<Project> {
@@ -65,53 +79,38 @@ export class ProjectService {
     return project;
   }
 
-  // ── Paginated list with filters ─────────────────────────────────────────────
-  async getProjects(rawFilters: Partial<ProjectFiltersInput> = {}) {
-    const { query, status, page, limit } =
-      ProjectFiltersSchema.parse(rawFilters);
-    const where: Record<string, unknown> = {};
+  // ── Get projects with filters ───────────────────────────────────────────────
+  async getProjects(rawFilters: Partial<ProjectFiltersInput>): Promise<Project[]> {
+    const filters = ProjectFiltersSchema.parse(rawFilters);
+    const where: Record<string, any> = {};
 
-    if (query) {
+    if (filters.query) {
       where.$or = [
-        { name: { $ilike: `%${query}%` } },
-        { location: { $ilike: `%${query}%` } },
-        { description: { $ilike: `%${query}%` } },
+        { name: { $like: `%${filters.query}%` } },
+        { location: { $like: `%${filters.query}%` } },
       ];
     }
+    if (filters.status) where.status = filters.status;
+    if (filters.tags?.length) where.tags = { $contains: filters.tags };
+    if (filters.startDate) where.startDate = { $gte: new Date(filters.startDate) };
+    if (filters.endDate) where.endDate = { $lte: new Date(filters.endDate) };
 
-    if (status) where.status = status;
-
-    const offset = (page - 1) * limit;
-
-    const [items, total] = await this.em.findAndCount(Project, where as never, {
-      populate: ['members'],
-      limit,
-      offset,
+    return this.em.find(Project, where, {
+      populate: ['members', 'photos', 'notes', 'timeline'],
       orderBy: { createdAt: 'DESC' },
     });
-
-    return {
-      items,
-      total,
-      page,
-      limit,
-      hasNextPage: offset + items.length < total,
-    };
   }
 
-  // ── Projects where current user is a member ─────────────────────────────────
-  async getMyProjects(currentUserId: string): Promise<Project[]> {
-    const projects = await this.em.find(
+  // ── Get projects for a user ─────────────────────────────────────────────────
+  async getMyProjects(userId: string): Promise<Project[]> {
+    return this.em.find(
       Project,
-      { members: { id: currentUserId } },
-      { populate: ['members', 'photos'], orderBy: { createdAt: 'DESC' } }
+      { members: { id: userId } },
+      {
+        populate: ['members', 'photos', 'notes', 'timeline'],
+        orderBy: { createdAt: 'DESC' },
+      }
     );
-
-    return projects.map(project => {
-      project.photos.init();
-
-      return project;
-    });
   }
 
   // ── Create ──────────────────────────────────────────────────────────────────
@@ -119,17 +118,17 @@ export class ProjectService {
     input: CreateProjectInput,
     currentUserId: string
   ): Promise<Project> {
-    const data = CreateProjectSchema.parse(input);
-    const { memberIds, startDate, endDate, ...rest } = data;
+    const { memberIds, ...rest } = CreateProjectSchema.parse(input);
+
+    const creator = await this.em.findOne(User, { id: currentUserId });
+    if (!creator) throw ErrorUtils.notFound('User');
 
     const project = this.em.create(Project, {
       ...rest,
-      startDate: new Date(),
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: rest.startDate ? new Date(rest.startDate) : new Date(),
+      endDate: rest.endDate ? new Date(rest.endDate) : undefined,
     });
 
-    // Add creator as member automatically
-    const creator = this.em.getReference(User, currentUserId);
     project.members.add(creator);
 
     // Add extra members if provided
@@ -153,6 +152,16 @@ export class ProjectService {
 
     await this.em.flush();
     LoggerUtils.info(`Project created: ${project.name}`);
+
+    // Notify all members except the creator — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Nuevo proyecto: ${project.name}`,
+      `Has sido añadido al proyecto "${project.name}"`,
+      currentUserId,
+      { type: 'PROJECT_CREATED', projectId: project.id }
+    );
+
     return project;
   }
 
@@ -184,12 +193,19 @@ export class ProjectService {
       throw ErrorUtils.badRequest('Progress must be between 0 and 100');
     }
 
-    this.em.assign(project, {
-      ...data,
-      status: data.status as ProjectStatus,
-      startDate: data.startDate ? new Date(data.startDate) : undefined,
-      endDate: data.endDate ? new Date(data.endDate) : undefined,
-    });
+    this.em.assign(
+      project,
+      definedOnly({
+        ...data,
+        status: data.status as ProjectStatus,
+        startDate: data.startDate
+          ? new Date(Number.parseInt(data.startDate))
+          : undefined,
+        endDate: data.endDate
+          ? new Date(Number.parseInt(data.endDate))
+          : undefined,
+      })
+    );
 
     const changes = Object.keys(data)
       .filter(k => k !== 'startDate' && k !== 'endDate')
@@ -201,25 +217,59 @@ export class ProjectService {
       project,
       TimelineEventType.MILESTONE,
       'Proyecto actualizado',
-      changes ? `Se actualizaron: ${changes}` : 'Se actualizó el proyecto'
+      'Hay novedades en tu proyecto'
     );
 
     await this.em.flush();
     LoggerUtils.info(`Project updated: ${project.name}`);
+
+    // Notify all members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Actualización en ${project.name}`,
+      changes ? `Se actualizaron: ${changes}` : 'El proyecto fue actualizado',
+      currentUserId,
+      { type: 'PROJECT_UPDATED', projectId: project.id }
+    );
+
     return project;
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
-  async deleteProject(id: string, currentRole: string): Promise<boolean> {
+  async deleteProject(id: string, currentRole: string, currentUserId: string): Promise<boolean> {
     if (currentRole === UserRole.USER) {
       throw ErrorUtils.forbidden('Only admins can delete projects');
     }
+    const project = await this.em.findOneOrFail(
+      Project,
+      { id },
+      { populate: ['photos', 'members'] }
+    );
 
-    const project = await this.findById(id);
+    // Guard: solo el admin/root o miembro con permisos puede borrar
+    const isMember = project.members
+      .getItems()
+      .some(m => m.id === currentUserId);
+    if (!isMember) throw ErrorUtils.forbidden('Not a project member');
+
+    // 1. Borrar archivos de S3 antes de tocar la BD
+    const deletePromises = project.photos
+      .getItems()
+      .filter(p => !!p.url)
+      .map(p =>
+        storageService.deleteFile(p.url).catch(err => {
+          LoggerUtils.warn(
+            `Failed to delete S3 object for photo ${p.id}: ${err.message}`
+          );
+        })
+      );
+
+    await Promise.all(deletePromises);
+
+    // 2. Borrar el proyecto — la BD se encarga del resto via ON DELETE CASCADE
     this.em.remove(project);
     await this.em.flush();
 
-    LoggerUtils.info(`Project deleted: ${project.name}`);
     return true;
   }
 
@@ -254,8 +304,18 @@ export class ProjectService {
     );
 
     await this.em.flush();
-
     LoggerUtils.info(`Member ${user.email} added to project ${project.name}`);
+
+    // Notify all existing members (including the new one) — fire and forget
+    // actorId is undefined here since addMember doesn't receive currentUserId
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Nuevo miembro en ${project.name}`,
+      `${user.name} ${user.lastName ?? ''} se unió al proyecto`,
+      undefined,
+      { type: 'MEMBER_ADDED', projectId: project.id, userId }
+    );
+
     return project;
   }
 
@@ -287,10 +347,19 @@ export class ProjectService {
     );
 
     await this.em.flush();
-
     LoggerUtils.info(
       `Member ${user.email} removed from project ${project.name}`
     );
+
+    // Notify remaining members — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Cambio de equipo en ${project.name}`,
+      `${user.name} ${user.lastName ?? ''} fue eliminado del proyecto`,
+      undefined,
+      { type: 'MEMBER_REMOVED', projectId: project.id, userId }
+    );
+
     return project;
   }
 
@@ -324,17 +393,30 @@ export class ProjectService {
     else if (progress > 0 && project.status === ProjectStatus.ACTIVE)
       project.status = ProjectStatus.ONGOING;
 
+    const progressDescription =
+      progress === 100
+        ? 'El proyecto se marcó como completado'
+        : `El progreso se actualizó al ${progress}%`;
+
     persistTimelineEvent(
       this.em,
       project,
       TimelineEventType.MILESTONE,
       `Progreso: ${progress}%`,
-      progress === 100
-        ? 'El proyecto se marcó como completado'
-        : `El progreso se actualizó al ${progress}%`
+      progressDescription
     );
 
     await this.em.flush();
+
+    // Notify all members except the actor — fire and forget
+    await this.notifications.notifyProjectMembers(
+      project.id,
+      `Progreso actualizado en ${project.name}`,
+      progressDescription,
+      currentUserId,
+      { type: 'PROGRESS_UPDATED', projectId: project.id, progress }
+    );
+
     return project;
   }
 }

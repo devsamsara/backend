@@ -19,6 +19,7 @@ import {
 } from '../utils/nickname.util';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { NotificationService } from './notification.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -71,9 +72,12 @@ function generateTempPassword(): string {
 export class CompanyService extends BaseService {
   private readonly authService: AuthService;
 
+  private readonly notifications: NotificationService;
+
   constructor(em: EntityManager) {
     super(em);
     this.authService = new AuthService(em);
+    this.notifications = new NotificationService(em);
   }
 
   async findById(id: string): Promise<Company> {
@@ -102,7 +106,7 @@ export class CompanyService extends BaseService {
     if (size) where.size = size;
 
     const offset = (page - 1) * limit;
-    const [items, total] = await this.em.findAndCount(Company, where as never, {
+    const [items, total] = await this.em.findAndCount(Company, where, {
       limit,
       offset,
       orderBy: { name: 'ASC' },
@@ -266,7 +270,8 @@ export class CompanyService extends BaseService {
       );
     }
 
-    await this.em.removeAndFlush(company);
+    this.em.remove(company);
+    await this.em.flush();
     LoggerUtils.info(`Company deleted: ${company.name}`);
     return true;
   }
@@ -419,7 +424,7 @@ export class CompanyService extends BaseService {
       id: photo.id,
       projectName: photo.project.name,
       url: photo.url,
-      date: photo.createdAt.toISOString(),
+      date: photo.createdAt,
     }));
 
     return {
@@ -596,17 +601,43 @@ export class CompanyService extends BaseService {
     user.status = UserStatus.ACTIVE;
 
     await this.em.populate(user, ['projects']);
-    for (const project of user.projects.getItems()) {
+
+    const projects = user.projects.getItems();
+    const fullName = `${user.name} ${user.lastName ?? ''}`.trim();
+
+    // Persist a timeline event for every project the user belongs to — sync, same transaction
+    projects.forEach(project =>
       persistTimelineEvent(
         this.em,
         project,
         TimelineEventType.TEAM,
         'Invitación aceptada',
-        `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`
-      );
-    }
+        `${fullName} aceptó la invitación y se unió al equipo`
+      )
+    );
 
     await this.em.flush();
+
+    // Notify members of every project in parallel — fire and forget
+    await Promise.allSettled(
+      projects.map(project =>
+        this.notifications
+          .notifyProjectMembers(
+            project.id,
+            `Nuevo miembro en ${project.name}`,
+            `${fullName} aceptó la invitación y se unió al equipo`,
+            user.id,
+            {
+              type: 'INVITATION_ACCEPTED',
+              projectId: project.id,
+              userId: user.id,
+            }
+          )
+          .catch(err =>
+            LoggerUtils.error(`Failed to notify project ${project.id}`, { err })
+          )
+      )
+    );
 
     inviteStore.delete(token);
     LoggerUtils.info(`Invitation accepted: ${user.email}`);

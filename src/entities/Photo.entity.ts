@@ -14,7 +14,7 @@ export class PhotoEntity extends BaseEntity {
   @Property({ type: 'json' })
   tags: string[] = [];
 
-  @ManyToOne(() => Project)
+  @ManyToOne(() => Project, {inversedBy: 'photos', deleteRule: "cascade"})
   project!: Project;
 
   @ManyToOne(() => User)

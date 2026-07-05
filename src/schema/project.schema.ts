@@ -5,6 +5,7 @@ export const projectTypeDefs = /* GraphQL */ `
     paused
     completed
     canceled
+    archived
   }
 
   type Photo {
@@ -25,6 +26,7 @@ export const projectTypeDefs = /* GraphQL */ `
     description: String!
     status: ProjectStatus!
     progress: Int!
+    tags: [String!]!
     startDate: String!
     endDate: String
     members: [User!]!
@@ -62,6 +64,7 @@ export const projectTypeDefs = /* GraphQL */ `
     longitude: Float
     thumbnail: String
     description: String
+    tags: [String]
     status: String
     progress: Int
     startDate: String
@@ -85,7 +88,7 @@ export const projectTypeDefs = /* GraphQL */ `
     getProjects(filters: ProjectFiltersInput): PaginatedProjects!
     getMyProjects: [Project!]!
     getUploadUrl(
-      projectId: ID!
+      projectId: ID
       fileName: String!
       mimeType: String!
     ): UploadUrlPayload!

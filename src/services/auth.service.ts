@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import { ErrorUtils } from '../utils/error.utils';
 import { signToken } from '../utils/auth.utils';
 import { LoggerUtils } from '../utils/logger.utils';
-import { RefreshToken } from '../entities/RefreshToken';
+import { RefreshTokenEntity } from '../entities/RefreshToken.entity';
 import { createServiceResponse } from '../utils/response.util';
 import { resolveUniqueNickname } from '../utils/nickname.util';
 
@@ -111,7 +111,7 @@ export class AuthService extends BaseService {
     const tokenString = crypto.randomBytes(64).toString('hex');
     const expiresAt = new Date(Date.now() + this.refreshTokenExpiry);
 
-    const refreshToken = this.em.create(RefreshToken, {
+    const refreshToken = this.em.create(RefreshTokenEntity, {
       user,
       token: tokenString,
       expiresAt,
@@ -334,7 +334,7 @@ export class AuthService extends BaseService {
 
   async refreshTokens(refreshTokenStr: string): Promise<AuthPayload> {
     const rt = await this.em.findOne(
-      RefreshToken,
+      RefreshTokenEntity,
       { token: refreshTokenStr },
       { populate: ['user', 'user.company'] }
     );

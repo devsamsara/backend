@@ -4,6 +4,7 @@ import { projectResolvers } from './project.resolver';
 import { noteResolvers } from './note.resolver';
 import { timelineResolvers } from './timeline.resolver';
 import { userResolvers } from './user.resolver';
+import { pushTokenResolvers } from './token.resolver';
 
 export const resolvers = {
   Query: {
@@ -12,6 +13,7 @@ export const resolvers = {
     ...noteResolvers.Query,
     ...timelineResolvers.Query,
     ...userResolvers.Query,
+    ...pushTokenResolvers.Query
   },
   Mutation: {
     ...authResolvers.Mutation,
@@ -20,5 +22,6 @@ export const resolvers = {
     ...noteResolvers.Mutation,
     ...timelineResolvers.Mutation,
     ...userResolvers.Mutation,
+    ...pushTokenResolvers.Mutation
   },
 };

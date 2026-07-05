@@ -3,7 +3,7 @@ import { BaseEntity } from './Base.entity';
 import User from './User.entity';
 
 @Entity()
-export class RefreshToken extends BaseEntity {
+export class RefreshTokenEntity extends BaseEntity {
   @ManyToOne(() => User, { deleteRule: 'cascade' })
   user!: User;
 
