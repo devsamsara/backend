@@ -19,6 +19,7 @@ import {
 } from '../utils/nickname.util';
 import { persistTimelineEvent } from '../utils/timeline.util';
 import { TimelineEventType } from '../entities/TimelineEvent.entity';
+import { NotificationService } from './notification.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -71,9 +72,12 @@ function generateTempPassword(): string {
 export class CompanyService extends BaseService {
   private readonly authService: AuthService;
 
+  private readonly notifications: NotificationService;
+
   constructor(em: EntityManager) {
     super(em);
     this.authService = new AuthService(em);
+    this.notifications = new NotificationService(em);
   }
 
   async findById(id: string): Promise<Company> {
@@ -607,6 +611,17 @@ export class CompanyService extends BaseService {
     }
 
     await this.em.flush();
+
+    // Notify all members of each project the new user joined — fire and forget
+    for (const project of user.projects.getItems()) {
+      this.notifications.notifyProjectMembers(
+        project.id,
+        `Nuevo miembro en ${project.name}`,
+        `${user.name} ${user.lastName ?? ''} aceptó la invitación y se unió al equipo`,
+        user.id,  // exclude the new member themselves
+        { type: 'INVITATION_ACCEPTED', projectId: project.id, userId: user.id }
+      );
+    }
 
     inviteStore.delete(token);
     LoggerUtils.info(`Invitation accepted: ${user.email}`);

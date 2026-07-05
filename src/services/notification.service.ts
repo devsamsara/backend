@@ -2,7 +2,9 @@ import { EntityManager } from '@mikro-orm/core';
 
 import { BaseService } from './base.service';
 import User from '../entities/User.entity';
+import { Project } from '../entities/Project.entity';
 import { sendPushNotification } from '../utils/notification.util';
+import { LoggerUtils } from '../utils/logger.utils';
 
 /**
  * Notification Service - Handles push notifications
@@ -90,6 +92,61 @@ export class NotificationService extends BaseService {
   }
 
   /**
+   * Notify all members of a project about a timeline event.
+   *
+   * - Loads the project members if not already populated.
+   * - Excludes the actor (the user who triggered the event) so they
+   *   don't receive a notification about their own action.
+   * - Only sends to members whose push tokens are registered and enabled.
+   * - Fires and forgets: errors are logged but never propagate to the caller,
+   *   so a notification failure never breaks the main business operation.
+   *
+   * @param projectId  - ID of the project whose members should be notified
+   * @param title      - Notification title (e.g. "Nuevo evento en Proyecto X")
+   * @param body       - Notification body (e.g. "Se añadió una foto al proyecto")
+   * @param actorId    - ID of the user who triggered the event (excluded from recipients)
+   * @param data       - Optional extra payload forwarded to the push notification
+   */
+  public async notifyProjectMembers(
+    projectId: string,
+    title: string,
+    body: string,
+    actorId?: string,
+    data?: PushNotificationData
+  ): Promise<void> {
+    try {
+      const project = await this.em.findOne(
+        Project,
+        { id: projectId },
+        { populate: ['members', 'members.pushTokens'] }
+      );
+
+      if (!project) {
+        LoggerUtils.warn(`[NotificationService] Project ${projectId} not found — skipping notifications`);
+        return;
+      }
+
+      const members = project.members.getItems();
+
+      // Filter out the actor so they don't get notified about their own action
+      const recipients = actorId
+        ? members.filter(m => m.id !== actorId)
+        : members;
+
+      if (recipients.length === 0) return;
+
+      await this.sendToUserEntities(recipients, title, body, data);
+
+      LoggerUtils.info(
+        `[NotificationService] Notified ${recipients.length} member(s) of project "${project.name}" — event: ${title}`
+      );
+    } catch (err) {
+      // Never let a notification failure break the caller
+      LoggerUtils.error('[NotificationService] Failed to notify project members', { err });
+    }
+  }
+
+  /**
    * Helper: Send notification to user entities
    */
   private async sendToUserEntities(
@@ -100,8 +157,15 @@ export class NotificationService extends BaseService {
   ): Promise<void> {
     for (const user of users) {
       if (user.pushTokens && user.pushTokens.length > 0) {
-        const tokens = user.pushTokens.getItems().map(t => t.token);
-        await this.sendToTokens(tokens, title, body, data);
+        // Only send to enabled tokens
+        const enabledTokens = user.pushTokens
+          .getItems()
+          .filter(t => t.enabled)
+          .map(t => t.token);
+
+        if (enabledTokens.length > 0) {
+          await this.sendToTokens(enabledTokens, title, body, data);
+        }
       }
     }
   }

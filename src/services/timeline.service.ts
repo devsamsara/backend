@@ -5,6 +5,7 @@ import { Project } from '../entities/Project.entity';
 import { UserRole } from '../entities/User.entity';
 import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
+import { NotificationService } from './notification.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -105,6 +106,17 @@ export class TimelineService {
     LoggerUtils.info(
       `Timeline event "${event.title}" created in project ${project.name}`
     );
+
+    // Notify all project members except the actor — fire and forget
+    const notificationService = new NotificationService(this.em);
+    notificationService.notifyProjectMembers(
+      project.id,
+      `Nuevo evento en ${project.name}`,
+      event.title,
+      currentUserId,
+      { type: 'TIMELINE_EVENT', projectId: project.id, eventId: event.id }
+    );
+
     return event;
   }
 
