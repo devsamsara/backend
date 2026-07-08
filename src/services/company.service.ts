@@ -186,12 +186,12 @@ export class CompanyService extends BaseService {
         LoggerUtils.error('Company confirmation email failed', { err })
       );
 
-    const { token } = await this.authService.createTokensPair(company.owner);
+    const { token, refreshToken } = await this.authService.createTokensPair(company.owner);
     return createServiceResponse(
       200,
       'Company request submitted successfully, You will be notified once it is reviewed',
       true,
-      { company, user: company.owner, token }
+      { company, user: company.owner, token, refreshToken }
     );
   }
 
