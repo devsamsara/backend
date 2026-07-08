@@ -77,6 +77,26 @@ const deleteUser = async (
   return service.deleteUser(id, role);
 };
 
+const deactivateUser = async (
+  _: unknown,
+  { id }: { id: string },
+  ctx: GraphQLContext
+) => {
+  const { role } = requireAdminOrRoot(ctx);
+  const service = new UserService(ctx.em);
+  return service.deactivateUser(id, role);
+};
+
+const permanentlyDeleteUser = async (
+  _: unknown,
+  { id }: { id: string },
+  ctx: GraphQLContext
+) => {
+  const { role } = requireAdminOrRoot(ctx);
+  const service = new UserService(ctx.em);
+  return service.permanentlyDeleteUser(id, role);
+};
+
 export const userResolvers = {
   Query: {
     me,
@@ -88,5 +108,7 @@ export const userResolvers = {
     updateUser,
     deleteUser,
     updateUserPicture,
+    deactivateUser,
+    permanentlyDeleteUser,
   },
 };

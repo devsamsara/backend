@@ -1,9 +1,13 @@
 import { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import User, { UserRole, UserStatus } from '../entities/User.entity';
+import { PhotoEntity } from '../entities/Photo.entity';
+import { Note } from '../entities/Note.entity';
 import { ErrorUtils } from '../utils/error.utils';
 import { LoggerUtils } from '../utils/logger.utils';
 import { BaseService } from './base.service';
+import { storageService } from './storage.service';
+import { CompanyService } from './company.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -158,6 +162,77 @@ export class UserService extends BaseService {
     await this.em.flush();
 
     LoggerUtils.info(`User deleted: ${user.email}`);
+    return true;
+  }
+
+  async deactivateUser(targetId: string, currentRole: string): Promise<User> {
+    if (currentRole === UserRole.USER) {
+      throw ErrorUtils.forbidden('Only admins can deactivate users');
+    }
+
+    const user = await this.findById(targetId);
+
+    if (user.status === UserStatus.INACTIVE) {
+      throw ErrorUtils.conflict('User is already inactive');
+    }
+
+    user.status = UserStatus.INACTIVE;
+    await this.em.flush();
+
+    LoggerUtils.info(`User deactivated: ${user.email}`);
+    return user;
+  }
+
+  async permanentlyDeleteUser(
+    targetId: string,
+    currentRole: string
+  ): Promise<boolean> {
+    if (currentRole === UserRole.USER) {
+      throw ErrorUtils.forbidden('Only admins can permanently delete users');
+    }
+
+    const user = await this.em.findOne(
+      User,
+      { id: targetId },
+      { populate: ['companies'] }
+    );
+    if (!user) throw ErrorUtils.notFound('User');
+
+    // If the user owns one or more companies, deleting the company cascade-deletes
+    // all its members (including this user), projects, photos, and notes.
+    const ownedCompanies = user.companies.getItems();
+    if (ownedCompanies.length > 0) {
+      const companyService = new CompanyService(this.em);
+      for (const company of ownedCompanies) {
+        await companyService.deleteCompany(company.id, currentRole);
+      }
+      // The user row was already removed as part of the company's user purge.
+      LoggerUtils.info(
+        `User ${user.email} permanently deleted via company cascade (${ownedCompanies.length} company/companies removed)`
+      );
+      return true;
+    }
+
+    // Regular user (no owned company): clean up their photos and notes first
+    // so FK constraints on uploaded_by / author don't block the user DELETE.
+    const photos = await this.em.find(PhotoEntity, { uploadedBy: user });
+    for (const photo of photos) {
+      await storageService.deleteFile(storageService.keyFromUrl(photo.url));
+      this.em.remove(photo);
+    }
+
+    const notes = await this.em.find(Note, { author: user });
+    for (const note of notes) {
+      this.em.remove(note);
+    }
+
+    // DB cascades handle refresh tokens and push tokens.
+    this.em.remove(user);
+    await this.em.flush();
+
+    LoggerUtils.info(
+      `User permanently deleted: ${user.email} — removed ${photos.length} photo(s) and ${notes.length} note(s)`
+    );
     return true;
   }
 }

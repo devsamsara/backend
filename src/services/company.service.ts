@@ -11,6 +11,7 @@ import { BaseService } from './base.service';
 import { AuthService } from './auth.service';
 import { Project, ProjectStatus } from '../entities/Project.entity';
 import { PhotoEntity } from '../entities/Photo.entity';
+import { storageService } from './storage.service';
 import moment from 'moment';
 import {
   generateBaseNickname,
@@ -186,12 +187,12 @@ export class CompanyService extends BaseService {
         LoggerUtils.error('Company confirmation email failed', { err })
       );
 
-    const { token, refreshToken } = await this.authService.createTokensPair(company.owner);
+    const { token } = await this.authService.createTokensPair(company.owner);
     return createServiceResponse(
       200,
       'Company request submitted successfully, You will be notified once it is reviewed',
       true,
-      { company, user: company.owner, token, refreshToken }
+      { company, user: company.owner, token }
     );
   }
 
@@ -261,18 +262,44 @@ export class CompanyService extends BaseService {
       throw ErrorUtils.forbidden('Only admins can delete companies');
     }
 
-    const company = await this.findById(id);
+    const company = await this.em.findOne(Company, { id });
+    if (!company) throw ErrorUtils.notFound('Company');
 
-    await company.users.init();
-    if (company.users.length > 0) {
-      throw ErrorUtils.conflict(
-        'Cannot delete a company that still has users assigned'
-      );
+    // Phase 1: find every project tied to this company, clean up S3 files,
+    // then remove the project rows. DB cascades handle photos / notes / timeline.
+    const projects = await this.em.find(
+      Project,
+      { members: { company } },
+      { populate: ['photos'] }
+    );
+
+    for (const project of projects) {
+      for (const photo of project.photos.getItems()) {
+        await storageService.deleteFile(storageService.keyFromUrl(photo.url));
+      }
+      this.em.remove(project);
     }
 
+    // Unset the owner FK before deleting users — otherwise the DB rejects
+    // the user DELETE because company.owner_id still references that user row.
+    company.owner = undefined;
+    await this.em.flush();
+
+    // Phase 2: remove all company members.
+    // DB cascades handle refresh tokens and push tokens.
+    await company.users.init();
+    for (const user of company.users.getItems()) {
+      this.em.remove(user);
+    }
+    await this.em.flush();
+
+    // Phase 3: remove the company itself.
     this.em.remove(company);
     await this.em.flush();
-    LoggerUtils.info(`Company deleted: ${company.name}`);
+
+    LoggerUtils.info(
+      `Company "${company.name}" permanently deleted — ${projects.length} project(s), ${company.users.length} user(s)`
+    );
     return true;
   }
 

@@ -12,7 +12,6 @@ export const customTypeDefs = /* GraphQL */ `
     message: String!
     company: Company!
     token: String!
-    refreshToken: String!
     user: User!
   }
 `;

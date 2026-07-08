@@ -67,5 +67,7 @@ export const userTypeDefs = /* GraphQL */ `
     updateUser(id: ID!, input: UpdateUserInput!): User!
     updateUserPicture(userId: ID!, picture: String!): User!
     deleteUser(id: ID!): Boolean!
+    deactivateUser(id: ID!): User!
+    permanentlyDeleteUser(id: ID!): Boolean!
   }
 `;
