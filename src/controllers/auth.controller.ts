@@ -8,8 +8,10 @@ import { LoggerUtils } from '../utils/logger.utils';
 
 function renderPage(title: string, message: string, success: boolean): string {
   const color = success ? '#16a34a' : '#dc2626';
-  const icon = success ? '✓' : '✗';
-  const APP_NAME = process.env.APP_NAME ?? 'Samsara';
+  const icon = success
+    ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  const APP_NAME = process.env.APP_NAME ?? 'KaylonCam';
   const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
   return `
@@ -22,8 +24,8 @@ function renderPage(title: string, message: string, success: boolean): string {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-          font-family: 'Segoe UI', Arial, sans-serif;
-          background: #f4f4f5;
+          font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif;
+          background: #F0F4F8;
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -32,30 +34,33 @@ function renderPage(title: string, message: string, success: boolean): string {
         }
         .card {
           background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,.08);
+          border-radius: 16px;
+          box-shadow: 0 4px 24px rgba(0,0,0,.08);
           max-width: 480px;
           width: 100%;
           overflow: hidden;
         }
-        .header { background: #111827; padding: 28px 32px; text-align: center; }
+        .header { background: #0F172A; padding: 28px 32px; text-align: center; }
         .header h1 { color: #fff; font-size: 20px; font-weight: 700; }
         .body { padding: 36px 32px; text-align: center; }
         .icon {
           width: 64px; height: 64px; border-radius: 50%;
           background: ${color}20; color: ${color};
-          font-size: 28px; font-weight: 700;
           display: flex; align-items: center; justify-content: center;
           margin: 0 auto 20px;
           border: 2px solid ${color}40;
         }
-        h2 { color: #111827; font-size: 18px; margin-bottom: 12px; }
+        h2 { color: #0F172A; font-size: 18px; margin-bottom: 12px; }
         p  { color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
         a.btn {
-          display: inline-block; background: #111827; color: #fff;
+          display: inline-block; background: #2563EB; color: #fff;
           padding: 12px 28px; border-radius: 8px;
           text-decoration: none; font-size: 14px; font-weight: 600;
+          transition: background-color 200ms ease;
+          cursor: pointer;
         }
+        a.btn:hover { background: #1D4ED8; }
+        a.btn:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
         .footer { padding: 16px 32px; text-align: center; border-top: 1px solid #e5e7eb; }
         .footer p { color: #9ca3af; font-size: 12px; margin: 0; }
       </style>
@@ -79,7 +84,7 @@ function renderPage(title: string, message: string, success: boolean): string {
 }
 
 function renderPasswordResetPage(token: string, error?: string): string {
-  const APP_NAME = process.env.APP_NAME ?? 'Samsara';
+  const APP_NAME = process.env.APP_NAME ?? 'KaylonCam';
   const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
   const formAction = `${API_URL}/auth/reset-password/?token=${encodeURIComponent(token)}`;
@@ -96,8 +101,8 @@ function renderPasswordResetPage(token: string, error?: string): string {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-          font-family: 'Segoe UI', Arial, sans-serif;
-          background: #f4f4f5;
+          font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif;
+          background: #F0F4F8;
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -106,24 +111,23 @@ function renderPasswordResetPage(token: string, error?: string): string {
         }
         .card {
           background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,.08);
+          border-radius: 16px;
+          box-shadow: 0 4px 24px rgba(0,0,0,.08);
           max-width: 480px;
           width: 100%;
           overflow: hidden;
         }
-        .header { background: #111827; padding: 28px 32px; text-align: center; }
+        .header { background: #0F172A; padding: 28px 32px; text-align: center; }
         .header h1 { color: #fff; font-size: 20px; font-weight: 700; }
         .body { padding: 36px 32px; text-align: center; }
         .icon {
           width: 64px; height: 64px; border-radius: 50%;
           background: #2563eb20; color: #2563eb;
-          font-size: 28px; font-weight: 700;
           display: flex; align-items: center; justify-content: center;
           margin: 0 auto 20px;
           border: 2px solid #2563eb40;
         }
-        h2 { color: #111827; font-size: 18px; margin-bottom: 8px; }
+        h2 { color: #0F172A; font-size: 18px; margin-bottom: 8px; }
         .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 28px; line-height: 1.5; }
 
         /* Campos del formulario */
@@ -136,7 +140,7 @@ function renderPasswordResetPage(token: string, error?: string): string {
         .field input[type="password"] {
           width: 100%; padding: 10px 40px 10px 12px;
           border: 1px solid #d1d5db; border-radius: 8px;
-          font-size: 14px; color: #111827;
+          font-size: 14px; color: #0F172A;
           outline: none; transition: border-color .2s;
         }
         .field input[type="password"]:focus { border-color: #2563eb; }
@@ -181,12 +185,13 @@ function renderPasswordResetPage(token: string, error?: string): string {
 
         /* Botón de envío */
         button[type="submit"] {
-          width: 100%; background: #111827; color: #fff;
+          width: 100%; background: #2563EB; color: #fff;
           padding: 12px; border: none; border-radius: 8px;
           font-size: 14px; font-weight: 600; cursor: pointer;
           margin-top: 8px; transition: background .2s;
         }
-        button[type="submit"]:hover:not(:disabled) { background: #1f2937; }
+        button[type="submit"]:hover:not(:disabled) { background: #1D4ED8; }
+        button[type="submit"]:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
         button[type="submit"]:disabled {
           background: #9ca3af; cursor: not-allowed;
         }
@@ -199,7 +204,7 @@ function renderPasswordResetPage(token: string, error?: string): string {
       <div class="card">
         <div class="header"><h1>${APP_NAME}</h1></div>
         <div class="body">
-          <div class="icon">&#128274;</div>
+          <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
           <h2>Nueva contraseña</h2>
           <p class="subtitle">Elige una contraseña segura.  
 Debe tener al menos 8 caracteres.</p>
@@ -370,7 +375,7 @@ Debe tener al menos 8 caracteres.</p>
 }
 
 function renderAcceptInvitationPage(token: string, error?: string): string {
-  const APP_NAME = process.env.APP_NAME ?? 'Samsara';
+  const APP_NAME = process.env.APP_NAME ?? 'KaylonCam';
   const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
   // Apunta a la misma ruta pero mediante POST
@@ -388,16 +393,17 @@ function renderAcceptInvitationPage(token: string, error?: string): string {
       <title>Invitación a Compañía — ${APP_NAME}</title>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); max-width: 480px; width: 100%; overflow: hidden; }
-        .header { background: #111827; padding: 28px 32px; text-align: center; }
+        body { font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif; background: #F0F4F8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 480px; width: 100%; overflow: hidden; }
+        .header { background: #0F172A; padding: 28px 32px; text-align: center; }
         .header h1 { color: #fff; font-size: 20px; font-weight: 700; }
         .body { padding: 36px 32px; text-align: center; }
-        .icon { width: 64px; height: 64px; border-radius: 50%; background: #2563eb20; color: #2563eb; font-size: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
-        h2 { color: #111827; font-size: 18px; margin-bottom: 12px; }
+        .icon { width: 64px; height: 64px; border-radius: 50%; background: #2563eb20; color: #2563eb; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        h2 { color: #0F172A; font-size: 18px; margin-bottom: 12px; }
         p { color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
-        button { background: #111827; color: #fff; padding: 12px 28px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; transition: background .2s; }
-        button:hover { background: #1f2937; }
+        button { background: #2563EB; color: #fff; padding: 12px 28px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; transition: background .2s; }
+        button:hover { background: #1D4ED8; }
+        button:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
         .footer { padding: 16px 32px; text-align: center; border-top: 1px solid #e5e7eb; }
         .footer p { color: #9ca3af; font-size: 12px; margin: 0; }
       </style>
@@ -406,7 +412,7 @@ function renderAcceptInvitationPage(token: string, error?: string): string {
       <div class="card">
         <div class="header"><h1>${APP_NAME}</h1></div>
         <div class="body">
-          <div class="icon">🏢</div>
+          <div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M6 21V7l6-4 6 4v14"/><path d="M10 21v-6h4v6"/><path d="M9 9h1M14 9h1M9 13h1M14 13h1"/></svg></div>
           <h2>¡Te damos la bienvenida!</h2>
           <p>Has sido aceptado y registrado en una compañía dentro de nuestra plataforma. Haz clic en el botón de abajo para confirmar tu acceso y activar tu cuenta.</p>
           
@@ -501,8 +507,8 @@ export const AuthController = {
           .status(200)
           .send(
             renderPage(
-              '¡Password changed!',
-              'The password has been changed successfully',
+              '¡Contraseña actualizada!',
+              'Tu contraseña ha sido cambiada exitosamente. Ya puedes iniciar sesión.',
               true
             )
           );

@@ -49,7 +49,13 @@ const CompanyFiltersSchema = z.object({
 
 const InviteMemberSchema = z.object({
   name: z.string().min(2).max(100),
-  email: z.string().email(),
+  // Normalizado (trim + lowercase) para que "Test@Gmail.com" y
+  // "test@gmail.com" se traten como el mismo usuario — evita duplicados
+  // que el unique constraint de la DB (case-sensitive) no detectaría.
+  email: z
+    .string()
+    .email()
+    .transform(v => v.trim().toLowerCase()),
   role: z.nativeEnum(UserRole).optional(),
   projectId: z.string().uuid('Invalid project ID'),
 });
@@ -177,6 +183,7 @@ export class CompanyService extends BaseService {
           industry: company.industry,
           size: company.size,
           status: company.status,
+          createdAt: company.createdAt,
         },
         {
           name: data.contactName,
@@ -335,11 +342,14 @@ export class CompanyService extends BaseService {
     const currentCompany = {
       id: company.id,
       name: company.name,
-      users: company.users.getItems().map(u => ({
-        id: u.id,
-        name: u.name,
-        avatarUrl: u.avatarUrl ?? null,
-      })),
+      users: company.users
+        .getItems()
+        .filter(u => u.status === UserStatus.ACTIVE)
+        .map(u => ({
+          id: u.id,
+          name: u.name,
+          avatarUrl: u.avatarUrl ?? null,
+        })),
     };
 
     const projectStatusCounts = {
@@ -540,55 +550,95 @@ export class CompanyService extends BaseService {
     });
     if (!project) throw ErrorUtils.notFound('Project');
 
-    // Email único
-    const existing = await this.em.findOne(User, { email: data.email });
-    if (existing) throw ErrorUtils.conflict('Email already in use');
-
-    // Nickname único (lógica centralizada en nickname.util)
-    const nickname = await resolveUniqueNickname(
-      this.em,
-      data.name
+    const existing = await this.em.findOne(
+      User,
+      { email: data.email },
+      { populate: ['company'] }
     );
 
-    // Crear usuario INACTIVE con password temporal
-    const tempPassword = generateTempPassword();
-    const invitedUser = this.em.create(User, {
-      name: data.name,
-      email: data.email,
-      password: tempPassword,
-      nickname,
-      role: data.role ?? UserRole.USER,
-      status: UserStatus.INACTIVE,
-      company: admin.company,
-    });
+    let invitedUser: User;
 
-    this.em.persist(invitedUser);
+    if (existing) {
+      invitedUser = existing;
 
-    // Añadir el usuario invitado al proyecto directamente
-    await project.members.init();
-    project.members.add(invitedUser);
+      if (existing.company.id === admin.company.id) {
+        await project.members.init();
+        project.members.add(invitedUser);
+        await this.em.flush();
+      }
 
-    await this.em.flush();
+      LoggerUtils.info(
+        `User re-invited: ${invitedUser.email} → company ${admin.company.name}, project ${project.name}`
+      );
+    } else {
+      // Nickname único (lógica centralizada en nickname.util)
+      const nickname = await resolveUniqueNickname(this.em, data.name);
 
-    LoggerUtils.info(
-      `User invited: ${invitedUser.email} → company ${admin.company.name}, project ${project.name}`
-    );
+      // Crear usuario INACTIVE con password temporal
+      const tempPassword = generateTempPassword();
+      invitedUser = this.em.create(User, {
+        name: data.name,
+        email: data.email,
+        password: tempPassword,
+        nickname,
+        role: data.role ?? UserRole.USER,
+        status: UserStatus.INACTIVE,
+        company: admin.company,
+      });
 
-    // Token de 24 h
-    const token = crypto.randomBytes(32).toString('hex');
-    inviteStore.set(token, {
-      userId: invitedUser.id,
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    });
+      this.em.persist(invitedUser);
 
-    // Email no bloqueante
-    emailService
-      .sendInvitationEmail(
-        { name: invitedUser.name, email: invitedUser.email },
-        admin.company.name,
-        token
-      )
-      .catch(err => LoggerUtils.error('Invitation email failed', { err }));
+      // Añadir el usuario invitado al proyecto directamente
+      await project.members.init();
+      project.members.add(invitedUser);
+
+      try {
+        await this.em.flush();
+      } catch (err) {
+        // Condición de carrera: dos invitaciones concurrentes para el mismo
+        // email pasaron el chequeo de "existing" antes de que ninguna
+        // hiciera commit. El unique constraint de la DB rechaza el segundo
+        // insert — en vez de propagar el error, descartamos el usuario que
+        // falló y recuperamos el que sí se creó, sin duplicarlo.
+        this.em.remove(invitedUser);
+        const racedUser = await this.em.findOne(User, { email: data.email });
+        if (!racedUser) throw err;
+        invitedUser = racedUser;
+
+        await project.members.init();
+        project.members.add(invitedUser);
+        await this.em.flush();
+      }
+
+      LoggerUtils.info(
+        `User invited: ${invitedUser.email} → company ${admin.company.name}, project ${project.name}`
+      );
+    }
+
+    // Solo se reenvía el correo de invitación a usuarios INACTIVE (invitación
+    // pendiente de aceptar). Un usuario ACTIVE ya tiene cuenta activada — no
+    // tiene sentido reenviarle un link de invitación.
+    if (invitedUser.status === UserStatus.INACTIVE) {
+      // Token de 24 h
+      const token = crypto.randomBytes(32).toString('hex');
+      inviteStore.set(token, {
+        userId: invitedUser.id,
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      });
+
+      // Email no bloqueante
+      emailService
+        .sendInvitationEmail(
+          { name: invitedUser.name, email: invitedUser.email },
+          admin.company.name,
+          token
+        )
+        .catch(err => LoggerUtils.error('Invitation email failed', { err }));
+    } else {
+      LoggerUtils.info(
+        `Invitation email skipped — user ${invitedUser.email} is already active`
+      );
+    }
 
     return true;
   }

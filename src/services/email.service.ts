@@ -24,6 +24,7 @@ export interface CompanyEmailData {
   industry: string;
   size: number;
   status: CompanyStatus;
+  createdAt: Date;
 }
 
 export interface UserEmailData {
@@ -67,7 +68,7 @@ export class EmailService {
   ): Promise<void> {
     await this.send({
       to: user.email,
-      subject: `Confirma tu cuenta en ${process.env.APP_NAME ?? 'Samsara'}`,
+      subject: `Confirma tu cuenta en ${process.env.APP_NAME ?? 'KaylonCam'}`,
       html: accountConfirmationEmailHtml(user, confirmToken),
     });
   }
@@ -104,7 +105,7 @@ export class EmailService {
   ): Promise<void> {
     await this.send({
       to: user.email,
-      subject: `Has sido invitado a unirte a ${companyName} en ${process.env.APP_NAME ?? 'Samsara'}`,
+      subject: `Has sido invitado a unirte a ${companyName} en ${process.env.APP_NAME ?? 'KaylonCam'}`,
       html: invitationEmailHtml(user, companyName, token),
     });
   }
